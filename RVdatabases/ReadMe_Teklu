@@ -1,0 +1,201 @@
+/A+A/702/A68           HIRES/Keck radial velocity database       (Teklu+, 2025)
+================================================================================
+An updated catalog of HIRES/Keck radial velocity measurements.
+Including Ca II H&K measurements.
+    Teklu J.T., Perdelwitz V., Butler R.P., Trifonov T., Vogt S.S., Mukhija D.,
+    Tal-Or L.
+    <Astron. Astrophys. 702, A68 (2025)>
+    =2025A&A...702A..68T        (SIMBAD/NED BibCode)
+================================================================================
+ADC_Keywords: Stars, double and multiple ; Exoplanets ; Radial velocities
+Keywords: techniques: radial velocities - stars: activity -
+          stars: chromospheres
+
+Abstract:
+    The first HIRES/Keck precision radial velocity (RV) catalog was
+    released in 2017, followed by a second release in 2019, incorporating
+    corrections for minor but significant systematic errors. We have
+    expanded this catalog to March 2023, with 17971 RV measurements for
+    1702 stars. Furthermore, we have included the chromospheric emission
+    lines CaII H&K indicator (R'HK), which is among the most prominent
+    tracers of stellar activity. The manifestation of stellar activity,
+    accompanied by minor systematic errors in high-resolution optical
+    stellar spectra, could affect exoplanets detected by the RV method. We
+    provide R'HK measurements for~40% of the HIRES catalog alongside RVs
+    to mitigate these effects. The precision RVs were obtained using an
+    iodine gas absorption cell, and relative, chromospheric emissions at
+    the CaII H&K lines were derived from the same spectra used for RV
+    measurements. The emitted flux was extracted by rectifying the
+    observed spectra with PHOENIX synthetic models across six narrow bands
+    surrounding the H and K lines, followed by the subtraction of the
+    photospheric contribution. The updated catalog may help distinguish
+    stellar activity effects from planetary signals in RV time series,
+    corroborating previously detected planetary candidates and aiding the
+    detection of new ones.
+
+Description:
+    The updated HIRES catalog as of March 2023, which includes 17971
+    additional spectra for 1702 stars. This update also addresses minor
+    systematic errors in RVs and introduces two new stars: TOI 1173 and
+    TYC 1243-262-1. Additionally, it includes the chromospheric emission
+    lines CaII H&K indicator (R'HK) for 31218 spectra, representing 40%
+    of the total 78920 spectra. The availability of R'HK measurements was
+    constrained by data quality, with the highest-confidence
+    subset-referred to as the "good sample", comprising 1285 stars out of
+    the full catalog of 1702 stars. This subset represents the most
+    reliable data for analyzing stellar activity and its impact on RV
+    measurements.
+
+File Summary:
+--------------------------------------------------------------------------------
+ FileName      Lrecl  Records   Explanations
+--------------------------------------------------------------------------------
+ReadMe            80        .   This file
+table1.dat       410     1702   Main stellar parameters of the HIRES sample and
+                                 statistical overview of the derived parameters
+                                 (tables 1 + 2)
+tablea1.dat      448    78920   Individual radial velocities with NZP corrected
+                                 and uncorrected, chromospheric activity
+                                 indices, and all internal and custom flags
+--------------------------------------------------------------------------------
+
+Byte-by-byte Description of file: table1.dat
+--------------------------------------------------------------------------------
+   Bytes Format Units     Label     Explanations
+--------------------------------------------------------------------------------
+   1- 14  A14   ---       Name      Star name
+  16- 45  A30   ---       Simbad    Simbad identifier
+  47- 65 F19.15 deg       RAdeg     Right Ascension (J2000)
+  67- 83 F17.13 deg       DEdeg     Declination (J2000)
+  85- 92  F8.3  km/s      RV        ?=- Radial velocity (from catalog)
+  94-113 F20.17 km/s    e_RV        ?=- Radial velocity error (from catalog)
+ 115-133  A19   ---     r_RV        Source of radial velocity
+ 135-142  F8.3  K         Teff      ?=- Effective temperature
+ 144-162 F19.15 K       e_Teff      ?=- Effective temperature error
+ 164-167  A4    ---     r_Teff      Source of effective temperature error
+ 169-174  F6.4  [cm/s2]   logg      ?=- Surface gravity
+ 176-189 E14.12 [cm/s2] e_logg      ?=- Surface gravity error
+ 191-194  A4    ---     r_logg      Source of surface gravity
+ 196-202  F7.4  [-]       [M/H]     ?=- Metallicity
+ 204-212  F9.7  [-]     e_[M/H]     ?=- Metallicity error
+ 214-217  A4    ---     r_[M/H]     Source of metallicity
+ 219-237 F19.15 km/s      vbroad    ?=- Rotational velocity
+ 239-245  F7.4  km/s    e_vbroad    ?=- Rotational velocity error
+ 247-250  A4    ---     r_vbroad    Source of rotational velocity
+ 252-272 F21.16 d         Timespan  Time coverage of observations per star
+ 274-277  I4    ---     o_RV        velocity measurements per star
+ 279-300 F22.16 ---       RVCstd    Standard deviation of NZP-corrected radial
+                                     velocities per star
+ 302-322 F21.17 ---     e_RVCstd    Median internal error of NZP-corrected
+                                     radial velocities per star
+ 324-345 E22.17 ---       RHKpMed   ?=- Median value of the chromospheric
+                                     activity index RHKp per star
+ 347-367 E21.17 ---     e_RHKpMed   ?=- Median value of the RHKp uncertainty
+                                     (dRHKp) per star
+ 369-388 F20.17 ---       SvalueMed Median value of the Mount Wilson S-index
+                                     value per star
+ 390-410 F21.18 ---       HalphaMed Median value of the H-alpha per star
+--------------------------------------------------------------------------------
+
+Byte-by-byte Description of file: tablea1.dat
+--------------------------------------------------------------------------------
+   Bytes Format Units   Label     Explanations
+--------------------------------------------------------------------------------
+   1- 14  A14   ---     Name      Star name
+  16- 45  A30   ---     Simbad    Simbad identifier name
+  47- 63 F17.13 deg     RAdeg     Right Ascension (J2000)
+  65- 81 F17.13 deg     DEdeg     Declination (J2000)
+  83- 95  F13.5 d       BJD       Barycentric Julian date
+  97-109  F13.7 d       MJD       Modified Julian date (from fits header)
+ 111-124  F14.7 km/s    RV        Radial velocity (derived)
+ 126-131  F6.2  km/s  e_RV        Radial velocity error (derived)
+ 133-148  F16.9 km/s    RVcor     NZP corrected radial velocity
+ 150-156  F7.3  km/s  e_RVcor     NZP corrCaIIected radial velocity error
+ 158-163  F6.3  km/s    CorV      NZP correction
+ 165-169  F5.3  km/s  e_CorV      NZP correction error
+ 171-176  I6    ---     Count     Median photons per pixel2025
+ 178-181  I4    s       ExpTime   Exposure time
+ 183-189  F7.4  ---     S-value   Chromosperic activity index S-index (1)
+ 191-198  F8.5  ---     H-alpha   ? Chromosperic activity index H-index (2)
+ 200-222 E23.17 ---     RHp       ?=- Relative chromospheric emission
+                                   in the CaII H line
+ 224-245 E22.17 ---   e_RHp       ?=- Relative chromospheric emission
+                                   in the CaII H line error
+ 247-269 E23.17 ---     RKp       ?=- Relative chromospheric emission
+                                   in the CaII K line
+ 271-292 E22.17 ---   e_RKp       ?=- Relative chromospheric emission
+                                   in the CaII K line error
+ 294-316 E23.17 ---     RHKp      ?=- Relative chromospheric emission
+                                   in the CaII H&K lines
+ 318-339 E22.17 ---   e_RHKp      ?=- Relative chromospheric emission
+                                   in the CaII H&K lines error
+ 341-343  F3.1  ---     vsiniflag ?=- Rotational velocity flag (3)
+ 345-347  F3.1  ---     metflag   ?=- Metallicity flag (4)
+ 349-351  F3.1  ---     RVflag    ?=- Radial velocity flag (5)
+ 353-374  A22   ---     koaid     The standard file identifier for the Keck
+                                   archive
+ 376-380  F5.1  ---     snr-esti  ?=- Estimated signal-to- noise ratio
+                                   (from fits header)
+ 382-396  A15   ---     EXQUAL-H  HIRES internal quality flag for spectra that
+                                   include the CaII H line (6)
+     398  I1    ---     fflux-H   ?=- Plateau-like flat flux flag for spectra
+                                   that include the CaII H line (6)(7)
+     400  I1    ---     nflux-H   ?=- Fluxes below zero flag for spectra that
+                                   include the CaII H line (7)
+     402  I1    ---     nwave-H   ?=- Folded wavelengths with negative values
+                                   flag for spectra that include the
+                                   CaII H line (7)
+     404  I1    ---     ccfflag-H Flag for the difference between the CCF RV
+                                   we derived and the catalog RV exceeds 3m/s
+                                   (Cross-correlation function for spectra that
+                                   include the CaII H line) (7)
+ 406-414  F9.5  ---     snrmedH   ?=- Signal-to-noise ratio per median column
+                                   for spectra that include the CaII H line
+                                   (from fits header)
+ 416-430  A15   ---     EXQUAL-K  HIRES internal quality flag for spectra that
+                                   include the CaII K line (7)
+     432  I1    ---     fflux-K   ?=- Plateau-like flat flux flag for spectra
+                                   that include the CaII K line (7)
+     434  I1    ---     nflux-K   ?=- Fluxes below zero flag for spectra that
+                                   include the CaII K line (7)
+     436  I1    ---     nwave-K   ?=- Folded wavelengths with negative values
+                                   flag for spectra that include the
+                                   CaII K line (7)
+     438  I1    ---     ccfflag-K ?=- Flag for the difference between the CCF RV
+                                   we derived and the catalog RV exceeds 3m/s
+                                   (Cross-correlation function for spectra that
+                                   include the CaII K line) (7)
+ 440-448  F9.5  ---     snrmedK   ?=- Signal-to-noise ratio per median column
+                                   for spectra that include the CaII K line
+                                   (from fits header)
+--------------------------------------------------------------------------------
+Note (1): Obtained from measurement of the emission reversal at the cores of the
+     Fraunhofer H and K lines of CaII at 3968{AA} and 3934{AA} respectively.
+Note (2): A measure of the chromospheric emission component at the H{alpha}
+     Balmer line of hydrogen at 6563{AA} (Gomes da Silva et al.
+     2011A&A...534A..30G). Note that H-index values H>=0.062 are to be
+     considered with caution (see Section 4 in the paper).
+Note (3): vsini flag as follows:
+    0 = have measurement from catalog
+    1 = have no measurement from catalog - use 1.0 (instead)
+Note (4): Metallicity flag as follows:
+    0 = have measurement from catalog
+    1 = have no measurement from catalog - use 0.0 (instead)
+Note (5): Radial velocity flag as follows:
+    0 = have measurement from catalog
+    1 = have no measurement from catalog - use 0.0 (instead)
+Note (6): HIRES internal quality flag: pass, fail and unknown.
+Note (7): All flags are defined as follows:
+    0 = no issue in the spectra (or unvalid values in the case of ccf_flag_K)
+    1 = issue detected
+--------------------------------------------------------------------------------
+
+Acknowledgements:
+         Jerusalem Tamirat Teklu, jerusale.teklu(at)msmail.ariel.ac.il
+
+History:
+    07-Oct-2025: on-line version
+    07-Apr-2026: units of RV in table1 corrected
+
+================================================================================
+(End) Jerusalem T. Teklu [Ariel, Israel], Patricia Vannier [CDS]     20-Aug-2025

@@ -1,0 +1,31 @@
+{
+  "input_star": "HD104800",
+  "source": "all",
+  "measurement_count": 85,
+  "orbit_fit_excluded_count": 6,
+  "periodogram_peak_period_days": 6.5946747661820675,
+  "periodogram_false_alarm_probability": 0.001,
+  "periodogram_false_alarm_threshold": 0.3283945928714991,
+  "period_days": 6.594707131483003,
+  "period_uncertainty_days": 0.0021820413771893744,
+  "sinusoidal_gamma_m_per_s": 1.1031561282151883,
+  "sinusoidal_semiamplitude_m_per_s": 1.4465346648105908,
+  "sinusoidal_semiamplitude_uncertainty_m_per_s": 0.34600225927491784,
+  "source_offsets_m_per_s": {
+    "HARPS": -1.2598677314486073
+  },
+  "conjunction_bjd": 2451556.5573137803,
+  "conjunction_uncertainty_days": 0.23127948695246997,
+  "phase_on_2027-07-01": 0.05961435833523865,
+  "phase_uncertainty_on_2027-07-01": 0.5045051030858706,
+  "phase_uncertainty_hours_on_2027-07-01": 79.849521628559,
+  "keplerian_gamma_m_per_s": 1.1166439630282308,
+  "keplerian_semiamplitude_m_per_s": 4.147020360499621,
+  "keplerian_eccentricity": 0.9499989893073755,
+  "keplerian_eccentricity_uncertainty": 0.13872691789366137,
+  "keplerian_omega_degrees": 98.1620870471373,
+  "keplerian_omega_uncertainty_degrees": 333.3399931340978,
+  "keplerian_periapsis_bjd": 2451556.323408665,
+  "keplerian_periapsis_uncertainty_days": 0.9080872392574436,
+  "orbit_fit_reduced_chi_squared": 1.576808863983962
+}

@@ -1,388 +1,51 @@
 #!/usr/bin/env python3
-"""Plot combined HIRES radial velocities for a star."""
+"""Plot combined radial velocities for a star and fit its orbit."""
 
 import argparse
-import csv
-import re
+import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
-import astropy.units as u
-from astropy.coordinates import EarthLocation, SkyCoord
-from astropy.time import Time
-from astroquery.simbad import Simbad
+from astropy.timeseries import LombScargle
 from scipy.optimize import least_squares
-from scipy.signal import lombscargle
+
+import rv_io
 
 
-DATABASE = Path(__file__).resolve().parent / "RVdatabases" / "tablea1_Teklu.dat"
-EXOARCHIVE_DATABASE = DATABASE.parent / "exoarchive"
-FULTON_DATABASE = DATABASE.parent / "rv_data_fulton"
-EXOARCHIVE_COORDINATES = DATABASE.parent / "exoarchive_host_coordinates.txt"
+PLOTS_DIRECTORY = Path(__file__).resolve().parent / "plots"
 SOURCE_COLORS = {
 	"Teklu": "tab:blue",
 	"ExoArchive": "tab:orange",
 	"Fulton": "tab:green",
+	"Hebrard": "tab:red",
+	"HARPS": "tab:purple",
+	"Synthetic": "tab:brown",
 }
-
-
-def normalize_identifier(identifier: str) -> str:
-	"""Normalize catalog identifiers for case- and whitespace-insensitive matching."""
-	return "".join(identifier.casefold().split())
-
-
-def read_star_rvs(database: Path, star: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-	"""Return BJD, NZP-corrected RV, and RV error for ``star``."""
-	target = normalize_identifier(star)
-	times = []
-	velocities = []
-	errors = []
-
-	with database.open(encoding="ascii") as data_file:
-		for line in data_file:
-			name = line[0:14].strip()
-			simbad_name = line[15:45].strip()
-			if target not in (normalize_identifier(name), normalize_identifier(simbad_name)):
-				continue
-
-			# The ReadMe says km/s, but the catalog RV values are in m/s.
-			# The byte ranges follow the tablea1_Teklu.dat description in ReadMe.
-			bjd_text = line[82:95].strip()
-			rv_text = line[132:148].strip()
-			error_text = line[149:156].strip()
-			if "-" in (bjd_text, rv_text, error_text):
-				continue
-
-			times.append(float(bjd_text))
-			velocities.append(float(rv_text))
-			errors.append(float(error_text))
-
-	if not times:
-		raise ValueError(f"No usable RV measurements found for {star!r}")
-
-	order = np.argsort(times)
-	return (
-		np.asarray(times)[order],
-		np.asarray(velocities)[order],
-		np.asarray(errors)[order],
-	)
-
-
-def read_exoarchive_rvs(
-	database: Path, star: str
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-	"""Return ExoArchive RV points in Teklu's systemic-velocity convention."""
-	target = normalize_identifier(star)
-	times = []
-	velocities = []
-	errors = []
-	skipped_time_frame = 0
-	skipped_site = 0
-	target_coordinates = None
-
-	for path in sorted(database.glob("*.tbl")):
-		text = path.read_text(encoding="utf-8")
-		match = re.search(r"\\STAR_ID\s*=\s*[\"']([^\"']+)[\"']", text)
-		if match is None or normalize_identifier(match.group(1)) != target:
-			continue
-
-		velocity_definition = _exoarchive_header_value(
-			text, "COLUMN_RADIAL_VELOCITY"
-		)
-		if velocity_definition is None:
-			continue
-		already_barycentric = "relative to barycenter" in velocity_definition.casefold()
-
-		date_units = _exoarchive_header_value(text, "DATE_UNITS")
-		time_frame = _exoarchive_header_value(text, "TIME_REFERENCE_FRAME")
-		if date_units is None or date_units.casefold() != "days" or time_frame is None:
-			skipped_time_frame += 1
-			continue
-		time_frame = time_frame.upper()
-		if time_frame not in {"BJD", "BJD-UTC", "BJD-TDB", "JD", "JD-UTC", "HJD", "HJD-UTC", "HJD-TBD", "FCJD", "MJD"}:
-			skipped_time_frame += 1
-			continue
-
-		if target_coordinates is None:
-			target_coordinates = find_simbad_coordinates(star)
-			if target_coordinates is None:
-				raise ValueError(f"Could not resolve coordinates for ExoArchive target {star!r}")
-		observatory_site = _exoarchive_header_value(text, "OBSERVATORY_SITE")
-		location = exoarchive_location(observatory_site)
-		if location is None:
-			skipped_site += 1
-			continue
-
-		file_times = []
-		file_velocities = []
-		file_errors = []
-		for line in text.splitlines():
-			if not line.strip() or line.lstrip().startswith(("\\", "|")):
-				continue
-			fields = line.split()
-			if len(fields) < 3:
-				continue
-			try:
-				observation_time, velocity, error = map(float, fields[:3])
-			except ValueError:
-				continue
-			file_times.append(_exoarchive_time_to_bjd(observation_time, time_frame))
-			file_velocities.append(velocity)
-			file_errors.append(error)
-
-		if not already_barycentric:
-			observation_times = Time(
-				file_times,
-				format="jd",
-				scale=_exoarchive_time_scale(time_frame),
-			)
-			correction = target_coordinates.radial_velocity_correction(
-				obstime=observation_times,
-				location=location,
-			).to_value(u.m / u.s)
-			file_velocities = (
-				np.asarray(file_velocities) + correction
-			).tolist()
-
-		# Teklu reports velocities relative to the host systemic velocity.
-		file_velocities = (
-			np.asarray(file_velocities) - np.median(file_velocities)
-		).tolist()
-		times.extend(file_times)
-		velocities.extend(file_velocities)
-		errors.extend(file_errors)
-
-	if skipped_time_frame or skipped_site:
-		print(
-			f"{star}: skipped {skipped_time_frame} ExoArchive file(s)"
-			f" with unsupported date frames and {skipped_site} with unknown sites"
-		)
-
-	return _sort_rv_arrays(times, velocities, errors)
-
-
-def _exoarchive_header_value(text: str, field: str) -> str | None:
-	"""Return one quoted ExoArchive header value."""
-	match = re.search(
-		rf"^\\{field}\s*=\s*[\"']?([^\"'\n]+)", text, re.MULTILINE
-	)
-	return match.group(1).strip() if match is not None else None
-
-
-def _exoarchive_time_to_bjd(observation_time: float, time_frame: str) -> float:
-	"""Convert a supported ExoArchive Julian-date value to BJD scale."""
-	if time_frame.startswith("MJD") and observation_time < 1_000_000:
-		return observation_time + 2_400_000.5
-	return observation_time
-
-
-def _exoarchive_time_scale(time_frame: str) -> str:
-	"""Return the Astropy time scale indicated by an ExoArchive frame."""
-	if time_frame.endswith("UTC"):
-		return "utc"
-	return "tdb"
-
-
-def find_simbad_coordinates(star: str) -> SkyCoord | None:
-	"""Return sky coordinates for an ExoArchive host star."""
-	coordinates = load_cached_coordinates()
-	cached_coordinates = coordinates.get(normalize_identifier(star))
-	if cached_coordinates is not None:
-		return cached_coordinates
-
-	try:
-		result = Simbad().query_object(star)
-	except Exception:
-		return None
-	if result is None or len(result) == 0:
-		return None
-	coordinates = SkyCoord(result["ra"][0], result["dec"][0], unit=u.deg)
-	with EXOARCHIVE_COORDINATES.open("a", encoding="utf-8", newline="") as cache:
-		if EXOARCHIVE_COORDINATES.stat().st_size == 0:
-			cache.write("host\tra_deg\tdec_deg\n")
-		cache.write(f"{star}\t{coordinates.ra.deg:.12f}\t{coordinates.dec.deg:.12f}\n")
-	return coordinates
-
-
-def load_cached_coordinates() -> dict[str, SkyCoord]:
-	"""Load cached ExoArchive host coordinates keyed by normalized name."""
-	if not EXOARCHIVE_COORDINATES.is_file():
-		return {}
-	coordinates = {}
-	with EXOARCHIVE_COORDINATES.open(encoding="utf-8") as cache:
-		for line in cache:
-			fields = line.rstrip().split("\t")
-			if len(fields) != 3 or fields[0] == "host":
-				continue
-			try:
-				coordinates[normalize_identifier(fields[0])] = SkyCoord(
-					float(fields[1]), float(fields[2]), unit=u.deg
-				)
-			except ValueError:
-				continue
-	return coordinates
-
-
-def exoarchive_location(site: str | None) -> EarthLocation | None:
-	"""Resolve common ExoArchive observatory labels to Earth locations."""
-	if not site:
-		return None
-	name = site.casefold()
-	aliases = (
-		("mauna kea", "keck"),
-		("manua kea", "keck"),
-		("maun kea", "keck"),
-		("lick", "lick observatory"),
-		("la silla", "La Silla Observatory"),
-		("las campanas", "Las Campanas Observatory"),
-		("mcdonald", "McDonald Observatory"),
-		("apache point", "Apache Point Observatory"),
-		("siding spring", "Siding Spring Observatory"),
-		("siding springs", "Siding Spring Observatory"),
-		("okayama", "Okayama Astrophysical Observatory"),
-		("paranal", "Cerro Paranal"),
-		("roque de los muchachos", "Roque de los Muchachos"),
-		("la palma", "Roque de los Muchachos"),
-		("whipple", "Whipple Observatory"),
-		("cal ar alto", "Observatorio de Calar Alto"),
-		("kitt peak", "Kitt Peak National Observatory"),
-		("xinglong", "Beijing XingLong Observatory"),
-	)
-	for fragment, location_name in aliases:
-		if fragment in name:
-			try:
-				return EarthLocation.of_site(location_name)
-			except Exception:
-				return None
-	try:
-		return EarthLocation.of_site(site)
-	except Exception:
-		return None
-
-
-def read_fulton_rvs(
-	database: Path, star: str
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-	"""Return Fulton RV points for ``star``."""
-	target = normalize_identifier(star)
-	times = []
-	velocities = []
-	errors = []
-
-	for path in sorted(database.glob("*_rv.csv")):
-		with path.open(encoding="utf-8", newline="") as data_file:
-			first_line = data_file.readline()
-			match = re.fullmatch(r"# star HD number,\s*(\d+)\s*\n?", first_line)
-			if match is None or normalize_identifier(f"HD {match.group(1)}") != target:
-				continue
-
-			reader = csv.reader(data_file)
-			for row in reader:
-				if len(row) < 3:
-					continue
-				try:
-					observation_time, velocity, error = map(float, row[:3])
-				except ValueError:
-					continue
-				times.append(observation_time + 2_440_000)
-				velocities.append(velocity)
-				errors.append(error)
-
-	return _sort_rv_arrays(times, velocities, errors)
-
-
-def _sort_rv_arrays(
-	times: list[float], velocities: list[float], errors: list[float]
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-	"""Convert RV lists to time-sorted arrays."""
-	if not times:
-		return np.array([]), np.array([]), np.array([])
-	order = np.argsort(times)
-	return (
-		np.asarray(times)[order],
-		np.asarray(velocities)[order],
-		np.asarray(errors)[order],
-	)
-
-
-def combine_rv_data(
-	datasets: list[tuple[str, tuple[np.ndarray, np.ndarray, np.ndarray]]],
-	duplicate_tolerance: float = 300 / 86_400,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-	"""Combine source datasets, dropping observations sharing a timestamp."""
-	points = []
-	for source, (times, velocities, errors) in datasets:
-		points.extend(
-			(time, velocity, error, source)
-			for time, velocity, error in zip(times, velocities, errors)
-		)
-
-	points.sort(key=lambda point: point[0])
-	unique_points = []
-	for point in points:
-		if unique_points and point[0] - unique_points[-1][0] <= duplicate_tolerance:
-			continue
-		unique_points.append(point)
-
-	if not unique_points:
-		raise ValueError("No RV measurements found in any database")
-	return (
-		np.asarray([point[0] for point in unique_points]),
-		np.asarray([point[1] for point in unique_points]),
-		np.asarray([point[2] for point in unique_points]),
-		np.asarray([point[3] for point in unique_points]),
-	)
-
-
-def find_simbad_database_id(database: Path, star: str) -> str | None:
-	"""Return a database ID matching one of the star's SIMBAD identifiers."""
-	database_ids = {}
-	with database.open(encoding="ascii") as data_file:
-		for line in data_file:
-			name = line[0:14].strip()
-			simbad_name = line[15:45].strip()
-			if name:
-				database_ids[normalize_identifier(name)] = name
-			if simbad_name:
-				database_ids[normalize_identifier(simbad_name)] = name
-
-	try:
-		simbad = Simbad()
-		simbad.add_votable_fields("ids")
-		result = simbad.query_object(star)
-	except Exception:
-		return None
-	if result is None or len(result) == 0 or result["ids"][0] is None:
-		return None
-
-	identifiers = [identifier.strip() for identifier in str(result["ids"][0]).split("|")]
-	print(f"{star}: SIMBAD alternative IDs: {identifiers}")
-	for identifier in identifiers:
-		match = database_ids.get(normalize_identifier(identifier))
-		if match is not None:
-			return match
-	return None
+OBSERVED_SOURCES = ("Teklu", "ExoArchive", "Fulton", "Hebrard", "HARPS")
+PERIOD_RANGE = (1.2, np.nextafter(8.0, 1.2))  # days
+FALSE_ALARM_PROBABILITY = 0.001
+TARGET_DATE = "2027-07-01"
+TARGET_BJD = 2_461_587.5  # 2027-07-01 00:00 UTC
 
 
 def calculate_periodogram(
-	bjd: np.ndarray, rv: np.ndarray
-) -> tuple[np.ndarray, np.ndarray, float]:
-	"""Return trial periods, Lomb-Scargle powers, and the peak period in days."""
-	minimum_period = 1.0
-	maximum_period = np.nextafter(8.0, minimum_period)
-	periods = np.geomspace(minimum_period, maximum_period, 40_000)
-	angular_frequencies = 2 * np.pi / periods
-	power = lombscargle(
-		bjd,
-		rv,
-		angular_frequencies,
-		precenter=True,
-		normalize=True,
+	bjd: np.ndarray, rv: np.ndarray, rv_error: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, float, float]:
+	"""Return trial periods, weighted Lomb-Scargle powers, the peak period, and
+	the Baluev power threshold for ``FALSE_ALARM_PROBABILITY`` over the same range."""
+	periods = np.geomspace(*PERIOD_RANGE, 40_000)
+	periodogram = LombScargle(bjd, rv, rv_error)
+	power = periodogram.power(1 / periods)
+	threshold = periodogram.false_alarm_level(
+		FALSE_ALARM_PROBABILITY,
+		minimum_frequency=1 / PERIOD_RANGE[1],
+		maximum_frequency=1 / PERIOD_RANGE[0],
+		method="baluev",
 	)
-	peak_period = periods[np.argmax(power)]
-	return periods, power, peak_period
+	return periods, power, periods[np.argmax(power)], float(threshold)
 
 
 def source_offset_design(source_labels: np.ndarray) -> tuple[np.ndarray, list[str]]:
@@ -401,56 +64,67 @@ def source_offset_design(source_labels: np.ndarray) -> tuple[np.ndarray, list[st
 	return design, offset_sources
 
 
+def sinusoid_design(
+	phase: np.ndarray, offset_design: np.ndarray | None = None
+) -> np.ndarray:
+	"""Return the [1, sin, cos, source offsets] design matrix for orbital phases."""
+	angle = 2 * np.pi * phase
+	columns = [np.ones_like(phase), np.sin(angle), np.cos(angle)]
+	if offset_design is not None:
+		columns.append(offset_design)
+	return np.column_stack(columns)
+
+
+def _fit_covariance(fit) -> tuple[np.ndarray, float]:
+	"""Return the parameter covariance and reduced chi-squared of a least-squares fit."""
+	reduced_chi_squared = np.sum(fit.fun**2) / (len(fit.fun) - len(fit.x))
+	return reduced_chi_squared * np.linalg.pinv(fit.jac.T @ fit.jac), reduced_chi_squared
+
+
+def fit_phase_curve(
+	phase: np.ndarray,
+	rv: np.ndarray,
+	rv_error: np.ndarray,
+	offset_design: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+	"""Fit a weighted sinusoid and return its coefficients and covariance."""
+	design = sinusoid_design(phase, offset_design)
+	weighted_design = design / rv_error[:, np.newaxis]
+	coefficients = np.linalg.lstsq(weighted_design, rv / rv_error, rcond=None)[0]
+	residuals = (rv - design @ coefficients) / rv_error
+	residual_variance = np.sum(residuals**2) / (len(rv) - design.shape[1])
+	covariance = residual_variance * np.linalg.pinv(weighted_design.T @ weighted_design)
+	return coefficients, covariance
+
+
 def fit_period(
 	bjd: np.ndarray,
 	rv: np.ndarray,
 	rv_error: np.ndarray,
 	initial_period: float,
-	source_labels: np.ndarray,
+	offset_design: np.ndarray,
 ) -> tuple[float, float]:
 	"""Refine the period and return its 1-sigma weighted-fit uncertainty."""
-	reference_bjd = bjd[0]
-	initial_phase = (bjd - reference_bjd) / initial_period
-	phase_design = np.column_stack(
-		[
-			np.ones_like(initial_phase),
-			np.sin(2 * np.pi * initial_phase),
-			np.cos(2 * np.pi * initial_phase),
-		]
+	elapsed = bjd - bjd[0]
+	initial_coefficients, _ = fit_phase_curve(
+		elapsed / initial_period, rv, rv_error, offset_design
 	)
-	offset_design, _ = source_offset_design(source_labels)
-	initial_design = np.column_stack([phase_design, offset_design])
-	initial_coefficients = np.linalg.lstsq(
-		initial_design / rv_error[:, np.newaxis], rv / rv_error, rcond=None
-	)[0]
 
 	def residuals(parameters: np.ndarray) -> np.ndarray:
-		period = parameters[-1]
-		phase = (bjd - reference_bjd) / period
-		phase_design = np.column_stack(
-			[
-				np.ones_like(phase),
-				np.sin(2 * np.pi * phase),
-				np.cos(2 * np.pi * phase),
-			]
-		)
-		design = np.column_stack([phase_design, offset_design])
+		design = sinusoid_design(elapsed / parameters[-1], offset_design)
 		return (rv - design @ parameters[:-1]) / rv_error
 
-	minimum_period = 1.0
-	maximum_period = np.nextafter(8.0, minimum_period)
+	coefficient_count = len(initial_coefficients)
 	fit = least_squares(
 		residuals,
 		np.append(initial_coefficients, initial_period),
 		bounds=(
-			[-np.inf] * initial_design.shape[1] + [minimum_period],
-			[np.inf] * initial_design.shape[1] + [maximum_period],
+			[-np.inf] * coefficient_count + [PERIOD_RANGE[0]],
+			[np.inf] * coefficient_count + [PERIOD_RANGE[1]],
 		),
 		x_scale="jac",
 	)
-	degrees_of_freedom = len(rv) - len(fit.x)
-	residual_variance = np.sum(fit.fun**2) / degrees_of_freedom
-	covariance = residual_variance * np.linalg.inv(fit.jac.T @ fit.jac)
+	covariance, _ = _fit_covariance(fit)
 	return fit.x[-1], np.sqrt(max(covariance[-1, -1], 0.0))
 
 
@@ -465,14 +139,9 @@ def solve_kepler(mean_anomaly: np.ndarray, eccentricity: float) -> np.ndarray:
 
 
 def calculate_keplerian_rv(
-	bjd: np.ndarray,
-	reference_bjd: float,
-	period: float,
-	parameters: np.ndarray,
-	source_labels: np.ndarray,
+	phase: np.ndarray, parameters: np.ndarray, offset_design: np.ndarray
 ) -> np.ndarray:
-	"""Evaluate the Keplerian RV model for the supplied observation times."""
-	phase = (bjd - reference_bjd) / period
+	"""Evaluate the Keplerian RV model at the supplied orbital phases."""
 	gamma, semiamplitude, eccentricity, omega, periapsis_phase = parameters[:5]
 	mean_anomaly = 2 * np.pi * (phase - periapsis_phase)
 	eccentric_anomaly = solve_kepler(mean_anomaly, eccentricity)
@@ -483,128 +152,70 @@ def calculate_keplerian_rv(
 	model = gamma + semiamplitude * (
 		np.cos(true_anomaly + omega) + eccentricity * np.cos(omega)
 	)
-	offset_design, _ = source_offset_design(source_labels)
 	return model + offset_design @ parameters[5:]
 
 
 def fit_keplerian(
-	bjd: np.ndarray,
+	phase: np.ndarray,
 	rv: np.ndarray,
 	rv_error: np.ndarray,
-	period: float,
-	source_labels: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-	"""Fit a Keplerian RV model and return parameters and covariance."""
-	reference_bjd = bjd[0]
-	phase = (bjd - reference_bjd) / period
-	phase_design = np.column_stack(
-		[np.ones_like(phase), np.sin(2 * np.pi * phase), np.cos(2 * np.pi * phase)]
-	)
-	offset_design, _ = source_offset_design(source_labels)
-	design = np.column_stack([phase_design, offset_design])
-	circular_coefficients = np.linalg.lstsq(
-		design / rv_error[:, np.newaxis], rv / rv_error, rcond=None
-	)[0]
-	initial_semiamplitude = np.hypot(circular_coefficients[1], circular_coefficients[2])
-	initial_periapsis_phase = (
-		np.arctan2(circular_coefficients[1], circular_coefficients[2]) / (2 * np.pi)
-	) % 1.0
-	initial_parameters = np.append(
+	offset_design: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, float]:
+	"""Fit a Keplerian RV model; return parameters, covariance, and reduced chi2."""
+	circular, _ = fit_phase_curve(phase, rv, rv_error, offset_design)
+	initial_parameters = np.concatenate([
 		[
-			circular_coefficients[0],
-			initial_semiamplitude,
+			circular[0],
+			np.hypot(circular[1], circular[2]),
 			0.05,
 			0.0,
-			initial_periapsis_phase,
+			(np.arctan2(circular[1], circular[2]) / (2 * np.pi)) % 1.0,
 		],
-		np.zeros(offset_design.shape[1]),
-	)
+		circular[3:],
+	])
 
 	def residuals(parameters: np.ndarray) -> np.ndarray:
-		model = calculate_keplerian_rv(
-			bjd, reference_bjd, period, parameters, source_labels
-		)
-		return (rv - model) / rv_error
+		return (rv - calculate_keplerian_rv(phase, parameters, offset_design)) / rv_error
 
+	offset_count = offset_design.shape[1]
 	fit = least_squares(
 		residuals,
 		initial_parameters,
 		bounds=(
-			[-np.inf, 0.0, 0.0, -np.pi, 0.0]
-			+ [-np.inf] * offset_design.shape[1],
-			[np.inf, np.inf, 0.95, np.pi, 1.0]
-			+ [np.inf] * offset_design.shape[1],
+			[-np.inf, 0.0, 0.0, -np.pi, 0.0] + [-np.inf] * offset_count,
+			[np.inf, np.inf, 0.95, np.pi, 1.0] + [np.inf] * offset_count,
 		),
 		x_scale="jac",
 		max_nfev=2_000,
 	)
-	degrees_of_freedom = len(rv) - len(fit.x)
-	residual_variance = np.sum(fit.fun**2) / degrees_of_freedom
-	covariance = residual_variance * np.linalg.pinv(fit.jac.T @ fit.jac)
-	return fit.x, covariance
+	covariance, reduced_chi_squared = _fit_covariance(fit)
+	return fit.x, covariance, reduced_chi_squared
 
 
-def fit_phase_curve(
-	phase: np.ndarray,
-	rv: np.ndarray,
-	rv_error: np.ndarray,
-	source_labels: np.ndarray,
-) -> tuple[np.ndarray, float, np.ndarray]:
-	"""Fit a weighted sinusoid and return coefficients, amplitude, and covariance."""
-	phase_design = np.column_stack(
-		[np.ones_like(phase), np.sin(2 * np.pi * phase), np.cos(2 * np.pi * phase)]
-	)
-	offset_design, _ = source_offset_design(source_labels)
-	design = np.column_stack([phase_design, offset_design])
-	weights = 1.0 / rv_error
-	coefficients, _, _, _ = np.linalg.lstsq(
-		design * weights[:, np.newaxis], rv * weights, rcond=None
-	)
-	weighted_design = design * weights[:, np.newaxis]
-	residuals = rv - design @ coefficients
-	degrees_of_freedom = len(rv) - design.shape[1]
-	residual_variance = np.sum((residuals * weights) ** 2) / degrees_of_freedom
-	coefficient_covariance = residual_variance * np.linalg.inv(
-		weighted_design.T @ weighted_design
-	)
-	semiamplitude = np.hypot(coefficients[1], coefficients[2])
-	return coefficients, semiamplitude, coefficient_covariance
-
-
-def calculate_conjunction_time(
-	bjd_reference: float,
-	period: float,
+def sinusoid_parameters(
 	coefficients: np.ndarray,
-	coefficient_covariance: np.ndarray,
-) -> tuple[float, float]:
-	"""Return decreasing RV zero-crossing BJD and its fit-only uncertainty."""
-	sine_coefficient, cosine_coefficient = coefficients[1:3]
-	phase_angle = np.arctan2(cosine_coefficient, sine_coefficient)
-	conjunction_phase = (0.5 - phase_angle / (2 * np.pi)) % 1.0
-	conjunction_bjd = bjd_reference + conjunction_phase * period
+	covariance: np.ndarray,
+	reference_bjd: float,
+	period: float,
+) -> tuple[float, float, float, float]:
+	"""Return semiamplitude, its uncertainty, and the decreasing RV zero-crossing
+	(conjunction) BJD with its fit-only uncertainty."""
+	sine, cosine = coefficients[1:3]
+	var_sine, var_cosine, cov_sine_cosine = covariance[1, 1], covariance[2, 2], covariance[1, 2]
+	amplitude_squared = sine**2 + cosine**2
+	semiamplitude = np.sqrt(amplitude_squared)
+	semiamplitude_uncertainty = np.sqrt(
+		(sine**2 * var_sine + cosine**2 * var_cosine + 2 * sine * cosine * cov_sine_cosine)
+		/ amplitude_squared
+	)
 
-	amplitude_squared = sine_coefficient**2 + cosine_coefficient**2
+	phase_angle = np.arctan2(cosine, sine)
+	conjunction_bjd = reference_bjd + ((0.5 - phase_angle / (2 * np.pi)) % 1.0) * period
 	phase_angle_variance = (
-		cosine_coefficient**2 * coefficient_covariance[1, 1]
-		+ sine_coefficient**2 * coefficient_covariance[2, 2]
-		- 2 * sine_coefficient * cosine_coefficient * coefficient_covariance[1, 2]
+		cosine**2 * var_sine + sine**2 * var_cosine - 2 * sine * cosine * cov_sine_cosine
 	) / amplitude_squared**2
 	conjunction_uncertainty = period * np.sqrt(phase_angle_variance) / (2 * np.pi)
-	return conjunction_bjd, conjunction_uncertainty
-
-
-def calculate_semiamplitude_uncertainty(
-	coefficients: np.ndarray, coefficient_covariance: np.ndarray
-) -> float:
-	"""Return the 1-sigma uncertainty on the sinusoidal semiamplitude."""
-	sine_coefficient, cosine_coefficient = coefficients[1:3]
-	semiamplitude = np.hypot(sine_coefficient, cosine_coefficient)
-	variance = (
-		sine_coefficient**2 * coefficient_covariance[1, 1]
-		+ cosine_coefficient**2 * coefficient_covariance[2, 2]
-		+ 2 * sine_coefficient * cosine_coefficient * coefficient_covariance[1, 2]
-	) / semiamplitude**2
-	return np.sqrt(variance)
+	return semiamplitude, semiamplitude_uncertainty, conjunction_bjd, conjunction_uncertainty
 
 
 def calculate_phase_at_date(
@@ -628,22 +239,18 @@ def exclude_orbit_fit_outliers(
 	phase: np.ndarray,
 	rv: np.ndarray,
 	rv_error: np.ndarray,
-	source_labels: np.ndarray,
+	offset_design: np.ndarray,
 ) -> np.ndarray:
 	"""Return a mask excluding obvious 5-sigma residual outliers."""
+	design = sinusoid_design(phase, offset_design)
 	mask = np.ones(len(rv), dtype=bool)
 	for _ in range(3):
-		coefficients, _, _ = fit_phase_curve(
-			phase[mask], rv[mask], rv_error[mask], source_labels[mask]
+		coefficients, _ = fit_phase_curve(
+			phase[mask], rv[mask], rv_error[mask], offset_design[mask]
 		)
-		model = coefficients[0] + coefficients[1] * np.sin(2 * np.pi * phase)
-		model += coefficients[2] * np.cos(2 * np.pi * phase)
-		offset_design, _ = source_offset_design(source_labels)
-		model += offset_design @ coefficients[3:]
-		residuals = rv - model
+		residuals = rv - design @ coefficients
 		center = np.median(residuals[mask])
-		mad = np.median(np.abs(residuals[mask] - center))
-		robust_scale = 1.4826 * mad
+		robust_scale = 1.4826 * np.median(np.abs(residuals[mask] - center))
 		scale = max(robust_scale, np.median(rv_error[mask]))
 		new_mask = np.abs(residuals - center) <= 5 * scale
 		if np.array_equal(new_mask, mask):
@@ -652,187 +259,149 @@ def exclude_orbit_fit_outliers(
 	return mask
 
 
-def main() -> None:
-	parser = argparse.ArgumentParser(
-		description="Plot combined HIRES radial velocities for a star."
-	)
-	parser.add_argument("star", help="Catalog or SIMBAD name, for example HD10700")
-	parser.add_argument(
-		"--database",
-		type=Path,
-		default=DATABASE,
-		help=f"Path to tablea1_Teklu.dat (default: {DATABASE})",
-	)
-	parser.add_argument(
-		"--source",
-		choices=("all", "teklu", "exoarchive", "fulton"),
-		default="all",
-		help="RV source to load (default: all)",
-	)
-	args = parser.parse_args()
+@dataclass
+class SystemFit:
+	"""Fit summary (JSON-ready ``parameters``) plus arrays needed for plotting."""
 
-	if args.source in ("all", "teklu") and not args.database.is_file():
-		parser.error(f"Database file not found: {args.database}")
+	parameters: dict
+	periods: np.ndarray
+	power: np.ndarray
+	phase: np.ndarray
+	offset_corrected_rv: np.ndarray
+	orbit_fit_mask: np.ndarray
+	sinusoid_coefficients: np.ndarray
 
-	datasets = []
-	database_star = args.star
-	external_star = args.star
-	if args.source in ("all", "teklu"):
-		try:
-			teklu_data = read_star_rvs(args.database, args.star)
-		except ValueError as error:
-			database_star = find_simbad_database_id(args.database, args.star)
-			if database_star is None:
-				if args.source == "teklu":
-					parser.error(str(error))
-				print(f"{args.star}: no matching Teklu RV data found")
-				teklu_data = None
-			else:
-				print(f"{args.star}: SIMBAD identifier found in database as {database_star}")
-				try:
-					teklu_data = read_star_rvs(args.database, database_star)
-				except ValueError:
-					teklu_data = None
-		if teklu_data is not None:
-			datasets.append(("Teklu", teklu_data))
 
-	if args.source in ("all", "exoarchive"):
-		datasets.append(
-		("ExoArchive", read_exoarchive_rvs(EXOARCHIVE_DATABASE, external_star))
-	)
-	if args.source in ("all", "fulton"):
-		datasets.append(("Fulton", read_fulton_rvs(FULTON_DATABASE, external_star)))
-	raw_measurement_count = sum(len(data[0]) for _, data in datasets)
-	try:
-		bjd, rv, rv_error, source_labels = combine_rv_data(datasets)
-	except ValueError as error:
-		parser.error(str(error))
-	print(
-		f"{args.star}: loaded {len(bjd)} RV measurements from {args.source} source(s)"
-		f" ({raw_measurement_count - len(bjd)} duplicate(s) removed)"
-	)
+def fit_system(
+	bjd: np.ndarray, rv: np.ndarray, rv_error: np.ndarray, source_labels: np.ndarray
+) -> SystemFit:
+	"""Find the period and fit sinusoidal and Keplerian orbits to combined RVs.
 
-	periods, power, peak_period = calculate_periodogram(bjd, rv)
-	period, period_uncertainty = fit_period(
-		bjd, rv, rv_error, peak_period, source_labels
+	Orbital phases are measured from ``bjd[0]``. Offsets are defined once from all
+	source labels so masked fits keep the same offset columns.
+	"""
+	offset_design, offset_sources = source_offset_design(source_labels)
+	periods, power, peak_period, false_alarm_threshold = calculate_periodogram(
+		bjd, rv, rv_error
 	)
-	print(
-		f"{args.star}: best-fit period = "
-		f"{period:.6g} +/- {period_uncertainty:.6g} days"
-	)
-
+	period, period_uncertainty = fit_period(bjd, rv, rv_error, peak_period, offset_design)
 	phase = ((bjd - bjd[0]) / period) % 1.0
-	orbit_fit_mask = exclude_orbit_fit_outliers(
-		phase, rv, rv_error, source_labels
+
+	mask = exclude_orbit_fit_outliers(phase, rv, rv_error, offset_design)
+	coefficients, covariance = fit_phase_curve(
+		phase[mask], rv[mask], rv_error[mask], offset_design[mask]
 	)
-	if not np.all(orbit_fit_mask):
-		print(
-			f"{args.star}: excluding "
-			f"{np.count_nonzero(~orbit_fit_mask)} obvious outlier(s) from orbit fit"
-		)
-	fit_coefficients, semiamplitude, fit_covariance = fit_phase_curve(
-		phase, rv, rv_error, source_labels
+	semiamplitude, semiamplitude_uncertainty, conjunction_bjd, conjunction_uncertainty = (
+		sinusoid_parameters(coefficients, covariance, bjd[0], period)
 	)
-	semiamplitude_uncertainty = calculate_semiamplitude_uncertainty(
-		fit_coefficients, fit_covariance
-	)
-	conjunction_bjd, conjunction_uncertainty = calculate_conjunction_time(
-		bjd[0], period, fit_coefficients, fit_covariance
-	)
-	fit_phase = np.linspace(0, 1, 500)
-	fit_design = np.column_stack(
-		[
-			np.ones_like(fit_phase),
-			np.sin(2 * np.pi * fit_phase),
-			np.cos(2 * np.pi * fit_phase),
-		]
-	)
-	fit_rv = fit_design @ fit_coefficients[:3]
-	offset_design, _ = source_offset_design(source_labels)
-	phase_plot_rv = rv - offset_design @ fit_coefficients[3:]
-	print(
-		f"{args.star}: best-fit RV semiamplitude = "
-		f"{semiamplitude:.6g} +/- {semiamplitude_uncertainty:.6g} m/s"
-	)
-	print(
-		f"{args.star}: primary-transit conjunction = "
-		f"BJD {conjunction_bjd:.6f} +/- {conjunction_uncertainty:.6f}"
-	)
-	target_bjd = 2_461_587.5  # 2027-07-01 00:00 UTC
 	target_phase, target_phase_uncertainty = calculate_phase_at_date(
-		target_bjd,
-		conjunction_bjd,
-		conjunction_uncertainty,
-		period,
-		period_uncertainty,
+		TARGET_BJD, conjunction_bjd, conjunction_uncertainty, period, period_uncertainty
 	)
-	print(
-		f"{args.star}: orbital phase on 2027-07-01 = "
-		f"{target_phase:.6f} +/- {target_phase_uncertainty:.6f} cycles"
+
+	keplerian, keplerian_covariance, reduced_chi_squared = fit_keplerian(
+		phase[mask], rv[mask], rv_error[mask], offset_design[mask]
 	)
-	keplerian_parameters, keplerian_covariance = fit_keplerian(
-		bjd[orbit_fit_mask],
-		rv[orbit_fit_mask],
-		rv_error[orbit_fit_mask],
-		period,
-		source_labels[orbit_fit_mask],
-	)
-	orbit_residuals = (
-		rv[orbit_fit_mask]
-		- calculate_keplerian_rv(
-			bjd[orbit_fit_mask],
-			bjd[orbit_fit_mask][0],
-			period,
-			keplerian_parameters,
-			source_labels[orbit_fit_mask],
-		)
-	) / rv_error[orbit_fit_mask]
-	degrees_of_freedom = np.count_nonzero(orbit_fit_mask) - len(keplerian_parameters)
-	reduced_chi_squared = np.sum(orbit_residuals**2) / degrees_of_freedom
-	eccentricity = keplerian_parameters[2]
+	eccentricity = keplerian[2]
 	eccentricity_uncertainty = np.sqrt(keplerian_covariance[2, 2])
-	omega_degrees = np.degrees(keplerian_parameters[3])
-	omega_uncertainty_degrees = np.degrees(
-		np.sqrt(keplerian_covariance[3, 3])
-	)
-	periapsis_bjd = bjd[0] + keplerian_parameters[4] * period
+	omega_degrees = np.degrees(keplerian[3])
+	omega_uncertainty_degrees = np.degrees(np.sqrt(keplerian_covariance[3, 3]))
+	periapsis_bjd = bjd[0] + keplerian[4] * period
 	periapsis_uncertainty = period * np.sqrt(keplerian_covariance[4, 4])
 	if eccentricity < eccentricity_uncertainty:
 		eccentricity = 0.0
-		omega_degrees = np.nan
-		omega_uncertainty_degrees = np.nan
-		periapsis_bjd = np.nan
-		periapsis_uncertainty = np.nan
-	print(
-		f"{args.star}: eccentricity = "
-		f"{eccentricity:.6g} +/- {eccentricity_uncertainty:.6g}"
-	)
-	print(
-		f"{args.star}: longitude of periastron = "
-		f"{omega_degrees:.6g} +/- {omega_uncertainty_degrees:.6g} degrees"
-	)
-	print(
-		f"{args.star}: time of periapsis passage = "
-		f"BJD {periapsis_bjd:.6f} +/- {periapsis_uncertainty:.6f}"
-	)
-	print(f"{args.star}: orbit-fit reduced chi2 = {reduced_chi_squared:.6g}")
+		omega_degrees = omega_uncertainty_degrees = np.nan
+		periapsis_bjd = periapsis_uncertainty = np.nan
 
-	figure, axes = plt.subplots(3, 1, sharex=False, figsize=(8, 10))
+	parameters = {
+		"measurement_count": len(bjd),
+		"orbit_fit_excluded_count": np.count_nonzero(~mask),
+		"periodogram_peak_period_days": peak_period,
+		"periodogram_false_alarm_probability": FALSE_ALARM_PROBABILITY,
+		"periodogram_false_alarm_threshold": false_alarm_threshold,
+		"period_days": period,
+		"period_uncertainty_days": period_uncertainty,
+		"sinusoidal_gamma_m_per_s": coefficients[0],
+		"sinusoidal_semiamplitude_m_per_s": semiamplitude,
+		"sinusoidal_semiamplitude_uncertainty_m_per_s": semiamplitude_uncertainty,
+		"source_offsets_m_per_s": dict(zip(offset_sources, coefficients[3:])),
+		"conjunction_bjd": conjunction_bjd,
+		"conjunction_uncertainty_days": conjunction_uncertainty,
+		f"phase_on_{TARGET_DATE}": target_phase,
+		f"phase_uncertainty_on_{TARGET_DATE}": target_phase_uncertainty,
+		f"phase_uncertainty_hours_on_{TARGET_DATE}": target_phase_uncertainty * period * 24,
+		"keplerian_gamma_m_per_s": keplerian[0],
+		"keplerian_semiamplitude_m_per_s": keplerian[1],
+		"keplerian_eccentricity": eccentricity,
+		"keplerian_eccentricity_uncertainty": eccentricity_uncertainty,
+		"keplerian_omega_degrees": omega_degrees,
+		"keplerian_omega_uncertainty_degrees": omega_uncertainty_degrees,
+		"keplerian_periapsis_bjd": periapsis_bjd,
+		"keplerian_periapsis_uncertainty_days": periapsis_uncertainty,
+		"orbit_fit_reduced_chi_squared": reduced_chi_squared,
+	}
+	return SystemFit(
+		parameters=_to_json(parameters),
+		periods=periods,
+		power=power,
+		phase=phase,
+		offset_corrected_rv=rv - offset_design @ coefficients[3:],
+		orbit_fit_mask=mask,
+		sinusoid_coefficients=coefficients,
+	)
+
+
+def _to_json(value):
+	"""Convert numpy scalars to JSON types, mapping NaN to None."""
+	if isinstance(value, dict):
+		return {key: _to_json(item) for key, item in value.items()}
+	if isinstance(value, np.integer):
+		return int(value)
+	if isinstance(value, (float, np.floating)):
+		return None if np.isnan(value) else float(value)
+	return value
+
+
+def _errorbar_by_source(
+	axis, x, y, yerr, source_labels, mask=None, label_suffix="", **style
+) -> None:
+	"""Draw one colored errorbar series per RV source."""
 	for source, color in SOURCE_COLORS.items():
 		source_mask = source_labels == source
+		if mask is not None:
+			source_mask &= mask
 		if np.any(source_mask):
-			axes[0].errorbar(
-				bjd[source_mask] - 2_450_000,
-				rv[source_mask],
-				yerr=rv_error[source_mask],
+			axis.errorbar(
+				x[source_mask],
+				y[source_mask],
+				yerr=yerr[source_mask],
 				fmt="o",
 				capsize=2,
 				color=color,
-				label=source,
+				label=f"{source}{label_suffix}",
+				**style,
 			)
+
+
+def plot_fit(
+	star: str,
+	bjd: np.ndarray,
+	rv: np.ndarray,
+	rv_error: np.ndarray,
+	source_labels: np.ndarray,
+	fit: SystemFit,
+) -> plt.Figure:
+	"""Plot the RV time series, periodogram, and phase-folded fit."""
+	parameters = fit.parameters
+	period = parameters["period_days"]
+	period_label = f"{period:.6g} +/- {parameters['period_uncertainty_days']:.6g}"
+	semiamplitude = parameters["sinusoidal_semiamplitude_m_per_s"]
+	semiamplitude_uncertainty = parameters["sinusoidal_semiamplitude_uncertainty_m_per_s"]
+
+	figure, axes = plt.subplots(3, 1, sharex=False, figsize=(8, 10))
+	_errorbar_by_source(axes[0], bjd - 2_450_000, rv, rv_error, source_labels)
 	axes[0].set_xlabel("BJD - 2450000")
 	axes[0].set_ylabel("Radial velocity (m/s)")
-	axes[0].set_title(f"{args.star} ({len(bjd)} measurements)")
+	axes[0].set_title(f"{star} ({len(bjd)} measurements)")
 	axes[0].grid(alpha=0.3)
 	axes[0].legend()
 	jd_to_matplotlib_date = 2_450_000 - 2_440_587.5
@@ -846,68 +415,144 @@ def main() -> None:
 	calendar_axis.set_xlabel("Calendar date (UTC)")
 	calendar_axis.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
 
-	axes[1].plot(periods, power)
+	axes[1].plot(fit.periods, fit.power)
 	axes[1].axvline(period, color="tab:red", linestyle="--")
+	axes[1].axhline(
+		parameters["periodogram_false_alarm_threshold"],
+		color="tab:purple",
+		linestyle=":",
+		label=f"{FALSE_ALARM_PROBABILITY:.1%} false-alarm threshold",
+	)
 	axes[1].set_xscale("log")
 	axes[1].set_xlabel("Period (days)")
 	axes[1].set_ylabel("Lomb-Scargle power")
-	axes[1].set_title(
-		f"Best-fit period = {period:.6g} +/- {period_uncertainty:.6g} days"
-	)
+	axes[1].set_title(f"Best-fit period = {period_label} days")
 	axes[1].grid(alpha=0.3)
+	axes[1].legend()
 
-	for source, color in SOURCE_COLORS.items():
-		source_mask = source_labels == source
-		included_mask = source_mask & orbit_fit_mask
-		excluded_mask = source_mask & ~orbit_fit_mask
-		if np.any(included_mask):
-			axes[2].errorbar(
-				phase[included_mask],
-				phase_plot_rv[included_mask],
-				yerr=rv_error[included_mask],
-				fmt="o",
-				capsize=2,
-				color=color,
-				label=source,
-			)
-		if np.any(excluded_mask):
-			axes[2].errorbar(
-				phase[excluded_mask],
-				phase_plot_rv[excluded_mask],
-				yerr=rv_error[excluded_mask],
-				fmt="o",
-				capsize=2,
-				color=color,
-				alpha=0.25,
-				label=f"{source} (excluded)",
-			)
+	mask = fit.orbit_fit_mask
+	_errorbar_by_source(
+		axes[2], fit.phase, fit.offset_corrected_rv, rv_error, source_labels, mask
+	)
+	_errorbar_by_source(
+		axes[2], fit.phase, fit.offset_corrected_rv, rv_error, source_labels, ~mask,
+		label_suffix=" (excluded)", alpha=0.25,
+	)
+	fit_phase = np.linspace(0, 1, 500)
 	axes[2].plot(
 		fit_phase,
-		fit_rv,
+		sinusoid_design(fit_phase) @ fit.sinusoid_coefficients[:3],
 		color="tab:red",
 		label=(
 			f"Sinusoidal fit (K = {semiamplitude:.4g} +/- "
 			f"{semiamplitude_uncertainty:.3g} m/s)"
 		),
 	)
-	axes[2].set_xlabel("Orbital phase")
-	axes[2].set_ylabel("Radial velocity (m/s)")
-	axes[2].set_title(
-		f"RV folded on {period:.6g} +/- {period_uncertainty:.6g}-day period; "
-		f"K = {semiamplitude:.6g} +/- {semiamplitude_uncertainty:.6g} m/s"
-	)
-	conjunction_phase = ((conjunction_bjd - bjd[0]) / period) % 1.0
 	axes[2].axvline(
-		conjunction_phase,
+		((parameters["conjunction_bjd"] - bjd[0]) / period) % 1.0,
 		color="tab:green",
 		linestyle="--",
 		label="Best-fit conjunction",
 	)
+	axes[2].set_xlabel("Orbital phase")
+	axes[2].set_ylabel("Radial velocity (m/s)")
+	axes[2].set_title(
+		f"RV folded on {period_label}-day period; "
+		f"K = {semiamplitude:.6g} +/- {semiamplitude_uncertainty:.6g} m/s"
+	)
 	axes[2].set_xlim(0, 1)
 	axes[2].grid(alpha=0.3)
 	axes[2].legend()
-
 	figure.tight_layout()
+	return figure
+
+
+def print_fit_summary(star: str, parameters: dict) -> None:
+	"""Print the main fitted quantities."""
+	def value(key: str, digits: str = ".6g") -> str:
+		number = parameters[key]
+		return "nan" if number is None else format(number, digits)
+
+	if parameters["orbit_fit_excluded_count"]:
+		print(
+			f"{star}: excluding {parameters['orbit_fit_excluded_count']}"
+			" obvious outlier(s) from orbit fit"
+		)
+	lines = (
+		f"best-fit period = {value('period_days')} +/- {value('period_uncertainty_days')} days",
+		f"best-fit RV semiamplitude = {value('sinusoidal_semiamplitude_m_per_s')}"
+		f" +/- {value('sinusoidal_semiamplitude_uncertainty_m_per_s')} m/s",
+		f"primary-transit conjunction = BJD {value('conjunction_bjd', '.6f')}"
+		f" +/- {value('conjunction_uncertainty_days', '.6f')}",
+		f"orbital phase on {TARGET_DATE} = {value(f'phase_on_{TARGET_DATE}', '.6f')}"
+		f" +/- {value(f'phase_uncertainty_on_{TARGET_DATE}', '.6f')} cycles"
+		f" (+/- {value(f'phase_uncertainty_hours_on_{TARGET_DATE}', '.6f')} hours)",
+		f"eccentricity = {value('keplerian_eccentricity')}"
+		f" +/- {value('keplerian_eccentricity_uncertainty')}",
+		f"longitude of periastron = {value('keplerian_omega_degrees')}"
+		f" +/- {value('keplerian_omega_uncertainty_degrees')} degrees",
+		f"time of periapsis passage = BJD {value('keplerian_periapsis_bjd', '.6f')}"
+		f" +/- {value('keplerian_periapsis_uncertainty_days', '.6f')}",
+		f"orbit-fit reduced chi2 = {value('orbit_fit_reduced_chi_squared')}",
+	)
+	for line in lines:
+		print(f"{star}: {line}")
+
+
+def main() -> None:
+	parser = argparse.ArgumentParser(
+		description="Plot combined radial velocities for a star and fit its orbit."
+	)
+	parser.add_argument("star", help="Catalog or SIMBAD name, for example HD10700")
+	parser.add_argument(
+		"--database",
+		type=Path,
+		default=rv_io.TEKLU_DATABASE,
+		help=f"Path to tablea1_Teklu.dat (default: {rv_io.TEKLU_DATABASE})",
+	)
+	source_names = {source.casefold(): source for source in OBSERVED_SOURCES}
+	parser.add_argument(
+		"--source",
+		choices=("all", *source_names),
+		default="all",
+		help="RV source to load (default: all)",
+	)
+	parser.add_argument(
+		"--synthetics",
+		action="store_true",
+		help="Also load matching synthetic RV points from RVdatabases/Synthetics/.",
+	)
+	args = parser.parse_args()
+
+	sources = list(OBSERVED_SOURCES) if args.source == "all" else [source_names[args.source]]
+	if "Teklu" in sources and not args.database.is_file():
+		parser.error(f"Database file not found: {args.database}")
+	if args.synthetics:
+		sources.append("Synthetic")
+
+	datasets = rv_io.load_datasets(args.star, sources, args.database)
+	raw_measurement_count = sum(len(data[0]) for _, data in datasets)
+	try:
+		bjd, rv, rv_error, source_labels = rv_io.combine_rv_data(datasets)
+	except ValueError as error:
+		parser.error(str(error))
+	print(
+		f"{args.star}: loaded {len(bjd)} RV measurements from {args.source} source(s)"
+		f" ({raw_measurement_count - len(bjd)} duplicate(s) removed)"
+	)
+
+	fit = fit_system(bjd, rv, rv_error, source_labels)
+	print_fit_summary(args.star, fit.parameters)
+	fit_parameters = {"input_star": args.star, "source": args.source, **fit.parameters}
+
+	figure = plot_fit(args.star, bjd, rv, rv_error, source_labels, fit)
+	PLOTS_DIRECTORY.mkdir(exist_ok=True)
+	output_path = PLOTS_DIRECTORY / f"{args.star}_rv_fit_plot.png"
+	figure.savefig(str(output_path), dpi=150)
+	json_path = PLOTS_DIRECTORY / f"{args.star}_rv_fit_parameters.json"
+	json_path.write_text(json.dumps(fit_parameters, indent=2) + "\n", encoding="utf-8")
+	print(f"Saved plot to {output_path}")
+	print(f"Saved fit parameters to {json_path}")
 	plt.show()
 
 

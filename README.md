@@ -164,7 +164,7 @@ python plot_rvs.py HD2638 --synthetics            # include RVdatabases/Syntheti
 ```
 
 - **`--source`** takes `all` (the default), `teklu`, `exoarchive`, `cls`, `harps`,
-  `harps2020`, `sophie`, `hebrard` or `neid`.
+  `harps2020`, `sophie`, `hebrard`, `neid`, `espresso` or `neveuvanmalle`.
 - **`--outer-model`** takes `auto` (the default), `none`, `sinusoid`, `keplerian` or `trend`.
   With `auto`, a term is added only when an outer signal passes vetting. Forcing a model
   still runs the vetting, and a forced term that fails it is labelled a candidate.

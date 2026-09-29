@@ -1,0 +1,106 @@
+{
+  "input_star": "WASP-94B",
+  "source": "all",
+  "includes_synthetics": false,
+  "measurement_count": 24,
+  "orbit_fit_excluded_count": 0,
+  "periodogram_peak_period_days": 2.009672271834491,
+  "periodogram_false_alarm_probability": 0.001,
+  "periodogram_false_alarm_threshold": 0.8115875663346009,
+  "orbit_model": "circular",
+  "eccentricity_significance": 0.719673205821683,
+  "period_days": 2.0085664805913295,
+  "period_uncertainty_days": 2.2626130200044468e-05,
+  "conjunction_bjd": 2457555.045318559,
+  "conjunction_uncertainty_days": 0.01429034655287203,
+  "semiamplitude_m_per_s": 86.61782356903606,
+  "semiamplitude_uncertainty_m_per_s": 2.2163738973753446,
+  "gamma_m_per_s": 15.052695831494137,
+  "eccentricity": 0.0,
+  "eccentricity_uncertainty": null,
+  "omega_degrees": null,
+  "omega_uncertainty_degrees": null,
+  "periapsis_bjd": null,
+  "periapsis_uncertainty_days": null,
+  "phase_on_2027-07-01": 0.6281867722984771,
+  "phase_uncertainty_on_2027-07-01": 0.02844881163572713,
+  "phase_uncertainty_hours_on_2027-07-01": 1.3713919071402747,
+  "reduced_chi_squared": 1.1315168183814002,
+  "jitter_m_per_s": {
+    "CORALIE": 3.8049694734720014,
+    "ESPRESSO19": 3.8049694734720014
+  },
+  "source_offsets_m_per_s": {
+    "ESPRESSO19": 70.31031510285727
+  },
+  "outer_signal": {
+    "flag": "none",
+    "baseline_days": 4717.97226042999,
+    "median_noise_m_per_s": 8.652182341988233,
+    "short_term_jitter_m_per_s": {
+      "CORALIE": 6.539726293690742,
+      "ESPRESSO19": 6.539726293690742
+    },
+    "amplitude_uncertainty_m_per_s": 2.506951727804574,
+    "long_period_peak": {
+      "period_days": 349.9499428740185,
+      "semiamplitude_m_per_s": 9.165808529874507,
+      "amplitude_significance": 3.656156769281445,
+      "delta_chi_squared": 2.971250739965508,
+      "false_alarm_probability": 1.0,
+      "conjunction_bjd": 146.13524350270882
+    },
+    "short_period_peak": {
+      "period_days": 32.32954196975105,
+      "semiamplitude_m_per_s": 5.819075917409572,
+      "amplitude_significance": 2.321175893763835,
+      "delta_chi_squared": 4.110583034990161,
+      "false_alarm_probability": 1.0,
+      "conjunction_bjd": 10.088792778075634
+    },
+    "trend_reference_bjd": 2457313.908499105,
+    "trend_slope_m_per_s_per_yr": 7.196517046056415,
+    "trend_curvature_m_per_s_per_yr2": -0.27680886019438056,
+    "model": null
+  },
+  "circular_fit": {
+    "period_days": 2.0085664805913295,
+    "period_uncertainty_days": 2.2626130200044468e-05,
+    "conjunction_bjd": 2457555.045318559,
+    "conjunction_uncertainty_days": 0.01429034655287203,
+    "semiamplitude_m_per_s": 86.61782356903606,
+    "semiamplitude_uncertainty_m_per_s": 2.2163738973753446,
+    "gamma_m_per_s": 15.052695831494137,
+    "phase_on_2027-07-01": 0.6281867722984771,
+    "phase_uncertainty_on_2027-07-01": 0.02844881163572713,
+    "phase_uncertainty_hours_on_2027-07-01": 1.3713919071402747,
+    "reduced_chi_squared": 1.1315168183814002,
+    "jitter_m_per_s": {
+      "CORALIE": 3.8049694734720014,
+      "ESPRESSO19": 3.8049694734720014
+    }
+  },
+  "keplerian_fit": {
+    "period_days": 2.008569392153293,
+    "period_uncertainty_days": 2.4586741160306947e-05,
+    "conjunction_bjd": 2457595.204163481,
+    "conjunction_uncertainty_days": 0.023406153066071786,
+    "semiamplitude_m_per_s": 86.7868628876538,
+    "semiamplitude_uncertainty_m_per_s": 2.3367752174844494,
+    "gamma_m_per_s": 14.92287426336507,
+    "eccentricity": 0.022317069618366457,
+    "eccentricity_uncertainty": 0.031010004871427806,
+    "omega_degrees": -7.845033623917032,
+    "omega_uncertainty_degrees": 73.88936619745283,
+    "periapsis_bjd": 2457594.6724168966,
+    "periapsis_uncertainty_days": 0.40845190452755625,
+    "phase_on_2027-07-01": 0.6315212784513733,
+    "phase_uncertainty_on_2027-07-01": 0.03092008878488204,
+    "phase_uncertainty_hours_on_2027-07-01": 1.4905234544634327,
+    "reduced_chi_squared": 1.2731027543479978,
+    "jitter_m_per_s": {
+      "CORALIE": 3.537130057555983,
+      "ESPRESSO19": 3.537130057555983
+    }
+  }
+}

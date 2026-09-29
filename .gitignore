@@ -7,12 +7,14 @@ RVdatabases/CLS/
 RVdatabases/HARPS/
 RVdatabases/HARPS_RVBank2/
 RVdatabases/Hebrard2016/
+RVdatabases/Neveu-VanMalle2014/
 RVdatabases/SOPHIE/
 RVdatabases/Synthetics/
 RVdatabases/simbad_cache.json
 *.part
 RVdatabases/exoplanet_archive_pscomppars_*.csv
 RVdatabases/NEID/
+RVdatabases/ESPRESSO/
 
 # Plots kept out of git
 plots/survey_candidates/

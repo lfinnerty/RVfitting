@@ -25,7 +25,11 @@ RVBANK_TARGETS = DATABASE_ROOT / "HARPS_RVBank2" / "table1.dat.gz"
 RVBANK2020_DATABASE = DATABASE_ROOT / "HARPS" / "rvbank.dat"
 SOPHIE_DATABASE = DATABASE_ROOT / "SOPHIE"
 NEID_DATABASE = DATABASE_ROOT / "NEID" / "neid_l2.csv"
+ESPRESSO_DATABASE = DATABASE_ROOT / "ESPRESSO" / "espresso_ccf.csv"
 HEBRARD_DATABASE = DATABASE_ROOT / "Hebrard2016" / "rvdata.dat"
+NEVEU_VANMALLE_DATABASE = DATABASE_ROOT / "Neveu-VanMalle2014"
+# One CORALIE file per star (both components of the WASP-94 binary).
+NEVEU_VANMALLE_FILES = {"w94a_rv.dat": "WASP-94A", "w94b_rv.dat": "WASP-94B"}
 SYNTHETICS_DATABASE = DATABASE_ROOT / "Synthetics"
 SIMBAD_CACHE = DATABASE_ROOT / "simbad_cache.json"
 MINIMUM_BJD = 2_447_161.5  # 1988-01-01 00:00 UTC
@@ -37,7 +41,7 @@ SIMBAD_BATCH_SIZE = 500
 # their observation year.
 ANALYSIS_YEAR = {
 	"Teklu": 2025, "NEID": 2024, "RVBank": 2024, "CLS": 2021, "RVBank2020": 2020, "Hebrard": 2016,
-	"Synthetic": 9999,
+	"NeveuVanMalle": 2014, "Synthetic": 9999,
 }
 
 # Two same-instrument points from different datasets closer than this are one
@@ -50,6 +54,7 @@ INSTRUMENT_DUPLICATE_TOLERANCE_DAYS = {"Hamilton": 1_800 / 86_400}
 HARPS_FIBRE_UPGRADE_BJD = 2_457_174.5  # 2015-06-03
 SOPHIE_PLUS_UPGRADE_BJD = 2_455_730.5  # 2011-06-14
 NEID_CONTRERAS_FIRE_BJD = 2_459_745.5  # 2022-06-15; NEID resumed in late 2023
+ESPRESSO_FIBRE_LINK_BJD = 2_458_661.5  # 2019-06-27 fibre-link change (ESPRESSO18/ESPRESSO19)
 # SOPHIE archive errors are photon noise only; add the instrumental floor in
 # quadrature (~5 m/s before the SOPHIE+ fibre upgrade, ~1.5 m/s after).
 SOPHIE_ERROR_FLOOR_M_S = {"SOPHIE": 5.0, "SOPHIE+": 1.5}
@@ -176,6 +181,7 @@ def database_hosts() -> set[str]:
 			identifiers.update(line[0:14].strip() for line in data_file)
 	identifiers.update(name for name, _ in _sophie_index().values())
 	identifiers.update(_hebrard_index())
+	identifiers.update(NEVEU_VANMALLE_FILES.values())
 	identifiers.discard("")
 	return identifiers
 
@@ -609,6 +615,39 @@ def read_neid_rvs(database: Path, star: str) -> RVData:
 	)))
 
 
+def read_espresso_rvs(database: Path, star: str) -> RVData:
+	"""Return ESPRESSO DRS CCF RVs (barycentric, km/s in the CCF headers), one offset per
+	instrument mode and side of the 2019 fibre-link change, relative to each group's median.
+
+	Only the star's most common CCF mask is kept, so every group shares one mask.
+	"""
+	if not database.is_file():
+		return _merge([])
+	with database.open() as data_file:
+		rows = [row for row in csv.DictReader(data_file) if catalog_key(row["target"]) in identifier_keys(star)]
+	if not rows:
+		return _merge([])
+	mask = Counter(row["mask"] for row in rows).most_common(1)[0][0]
+	by_mode = defaultdict(list)
+	for row in rows:
+		parsed = _first_three_floats([row["bjd"], row["rv_km_s"], row["rv_error_km_s"]])
+		if row["mask"] == mask and parsed is not None:
+			by_mode[row["mode"]].append((parsed[0], parsed[1] * 1_000, parsed[2] * 1_000))
+	chunks = []
+	for mode, mode_rows in by_mode.items():
+		suffix = "" if mode == "SINGLEHR" else f" {mode}"
+		chunks += _split_at(
+			mode_rows, ESPRESSO_FIBRE_LINK_BJD, (f"ESPRESSO18{suffix}", f"ESPRESSO19{suffix}"),
+			instrument="ESPRESSO", year=0, dataset="ESPRESSO",
+		)
+	# Pipeline RVs are as recent as the observation itself.
+	chunks = [
+		chunk._replace(year=np.floor(2000 + (chunk.time - 2_451_544.5) / 365.25).astype(int))
+		for chunk in chunks
+	]
+	return _merge(_relative_to_median(chunks))
+
+
 @cache
 def _hebrard_index(database: Path = HEBRARD_DATABASE) -> dict[str, list[Row]]:
 	index = defaultdict(list)
@@ -642,6 +681,24 @@ def read_hebrard_rvs(database: Path, star: str) -> RVData:
 	return _merge([_chunk(rows, "Hebrard", "SOPHIE", ANALYSIS_YEAR["Hebrard"], "Hebrard")])
 
 
+def read_neveu_vanmalle_rvs(database: Path, star: str) -> RVData:
+	"""Return Neveu-VanMalle et al. 2014 CORALIE RVs (BJD - 2450000, km/s), relative to their median."""
+	rows = []
+	for file_name, name in NEVEU_VANMALLE_FILES.items():
+		path = database / file_name
+		if not path.is_file() or not _matches(name, star):
+			continue
+		with path.open(encoding="ascii") as data_file:
+			for line in data_file:
+				row = _first_three_floats(line.split())
+				if row is not None:
+					rows.append((row[0] + 2_450_000, row[1] * 1_000, row[2] * 1_000))
+	if not rows:
+		return _merge([])
+	chunk = _chunk(rows, "CORALIE", "CORALIE", ANALYSIS_YEAR["NeveuVanMalle"], "NeveuVanMalle")
+	return _merge(_relative_to_median([chunk]))
+
+
 # ---------------------------------------------------------------------------
 # Combined loading
 # ---------------------------------------------------------------------------
@@ -654,7 +711,9 @@ READERS = {
 	"HARPS2020": (read_rvbank2020_rvs, RVBANK2020_DATABASE),
 	"SOPHIE": (read_sophie_rvs, SOPHIE_DATABASE),
 	"NEID": (read_neid_rvs, NEID_DATABASE),
+	"ESPRESSO": (read_espresso_rvs, ESPRESSO_DATABASE),
 	"Hebrard": (read_hebrard_rvs, HEBRARD_DATABASE),
+	"NeveuVanMalle": (read_neveu_vanmalle_rvs, NEVEU_VANMALLE_DATABASE),
 	"Synthetic": (read_synthetic_rvs, SYNTHETICS_DATABASE),
 }
 

@@ -28,8 +28,6 @@ That command skips files that are already on disk. `vizier`, `exoarchive`, or
 - `simbad_cache.json` stores the SIMBAD records (IDs, coordinates, systemic RV)
   that `rv_io` uses to match star names. It rebuilds itself on demand.
 - `exoarchive_hosts.txt` is written by `list_rv_systems.py --file-lists`.
-- `exoarchive_host_coordinates.txt` is the old coordinate cache. It is no
-  longer read.
 
 ## Removed
 

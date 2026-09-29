@@ -1,0 +1,163 @@
+{
+  "input_star": "HD 68988",
+  "source": "all",
+  "includes_synthetics": false,
+  "measurement_count": 110,
+  "orbit_fit_excluded_count": 0,
+  "periodogram_peak_period_days": 6.276680504249657,
+  "periodogram_false_alarm_probability": 0.001,
+  "periodogram_false_alarm_threshold": 0.27649864691255793,
+  "orbit_model": "keplerian",
+  "eccentricity_significance": 9.884442754437307,
+  "period_days": 6.2764011086704965,
+  "period_uncertainty_days": 2.5730459326245058e-05,
+  "conjunction_bjd": 2455560.3567477805,
+  "conjunction_uncertainty_days": 0.021986613168617507,
+  "semiamplitude_m_per_s": 193.823954077939,
+  "semiamplitude_uncertainty_m_per_s": 2.8434902783881135,
+  "gamma_m_per_s": 60.24929030336408,
+  "eccentricity": 0.13653301430983658,
+  "eccentricity_uncertainty": 0.013812919726662832,
+  "omega_degrees": 43.85781928767145,
+  "omega_uncertainty_degrees": 5.759057265730079,
+  "periapsis_bjd": 2455559.735538844,
+  "periapsis_uncertainty_days": 0.09755189164746168,
+  "phase_on_2027-07-01": 0.28649983720424643,
+  "phase_uncertainty_on_2027-07-01": 0.00552084860833159,
+  "phase_uncertainty_hours_on_2027-07-01": 0.8316254478272247,
+  "reduced_chi_squared": 1.0784384185463145,
+  "jitter_m_per_s": {
+    "ExoArchive": 182.58627603581826,
+    "Teklu": 16.488748798334644,
+    "CLS Lick": 14.7764032165056,
+    "CLS HIRES-k": 14.7764032165056,
+    "CLS HIRES-j": 13.064057634676557,
+    "SOPHIE+": 10.988309779149578
+  },
+  "source_offsets_m_per_s": {
+    "ExoArchive": -101.3504868520564,
+    "CLS Lick": 131.4330728331341,
+    "CLS HIRES-k": -43.2480896215689,
+    "CLS HIRES-j": -22.958951910235402,
+    "SOPHIE+": -97.67303525670124
+  },
+  "outer_signal": {
+    "flag": "outer_planet",
+    "baseline_days": 9518.41447865963,
+    "median_noise_m_per_s": 5.268622671786338,
+    "short_term_jitter_m_per_s": {
+      "ExoArchive": 107.68450292413554,
+      "Teklu": 4.999445106175058,
+      "CLS Lick": 37.47020771248238,
+      "CLS HIRES-k": 37.47020771248238,
+      "CLS HIRES-j": 69.71501714900333,
+      "SOPHIE+": 5.225398275961428
+    },
+    "amplitude_uncertainty_m_per_s": 0.8689368710067531,
+    "long_period_peak": {
+      "period_days": 9294.201320525463,
+      "semiamplitude_m_per_s": 102.25887174471808,
+      "amplitude_significance": 117.68273985915756,
+      "delta_chi_squared": 10652.83007791551,
+      "false_alarm_probability": 0.0,
+      "conjunction_bjd": -2594.1573013009142
+    },
+    "short_period_peak": {
+      "period_days": 12.518745494016166,
+      "semiamplitude_m_per_s": 53.62241603357824,
+      "amplitude_significance": 61.71037024985616,
+      "delta_chi_squared": 3765.20805314277,
+      "false_alarm_probability": 0.0,
+      "conjunction_bjd": 0.7816094415225424
+    },
+    "trend_reference_bjd": 2455175.872365902,
+    "trend_slope_m_per_s_per_yr": 8.216605215292292,
+    "trend_curvature_m_per_s_per_yr2": 0.531390250153224,
+    "vetting": {
+      "fitted_significance": 32.54107117726596,
+      "exposure_level_significance": 31.166669110866422,
+      "yearly_alias_offset": 0.961504673461424,
+      "independent_nights": 104,
+      "observing_seasons": 28,
+      "rejection_reasons": []
+    },
+    "outer_model_comparison": {
+      "circular": {
+        "model": "sinusoid",
+        "semiamplitude_m_per_s": 99.29699872262287,
+        "semiamplitude_uncertainty_m_per_s": 3.1859997091573207,
+        "period_days": 9573.146593459911,
+        "period_uncertainty_days": 229.5646638175652,
+        "conjunction_bjd": 2460528.6008912013,
+        "conjunction_uncertainty_days": 151.10116440736124,
+        "period_to_baseline": 1.0057501293858333,
+        "orbit_coverage": "partial_orbit",
+        "msini_mjup_per_mstar_msun_2_3": 10.373766284111339,
+        "msini_mjup_per_mstar_msun_2_3_uncertainty": 0.31538239561446607
+      },
+      "keplerian": "not attempted: partial orbit"
+    },
+    "fit": {
+      "model": "sinusoid",
+      "semiamplitude_m_per_s": 99.29699872262287,
+      "semiamplitude_uncertainty_m_per_s": 3.1859997091573207,
+      "period_days": 9573.146593459911,
+      "period_uncertainty_days": 229.5646638175652,
+      "conjunction_bjd": 2460528.6008912013,
+      "conjunction_uncertainty_days": 151.10116440736124,
+      "period_to_baseline": 1.0057501293858333,
+      "orbit_coverage": "partial_orbit",
+      "msini_mjup_per_mstar_msun_2_3": 10.373766284111339,
+      "msini_mjup_per_mstar_msun_2_3_uncertainty": 0.31538239561446607
+    },
+    "model": "sinusoid"
+  },
+  "circular_fit": {
+    "period_days": 6.2764559836621014,
+    "period_uncertainty_days": 3.715775538046193e-05,
+    "conjunction_bjd": 2455918.268315703,
+    "conjunction_uncertainty_days": 0.017964726378622283,
+    "semiamplitude_m_per_s": 183.73793238443704,
+    "semiamplitude_uncertainty_m_per_s": 3.7229393680700835,
+    "gamma_m_per_s": 63.43802119324458,
+    "phase_on_2027-07-01": 0.2536353404092324,
+    "phase_uncertainty_on_2027-07-01": 0.005623150767997501,
+    "phase_uncertainty_hours_on_2027-07-01": 0.8470429988359693,
+    "reduced_chi_squared": 1.0748206186235698,
+    "jitter_m_per_s": {
+      "ExoArchive": 179.14161104492047,
+      "Teklu": 23.922408447170692,
+      "CLS Lick": 23.334199912345706,
+      "CLS HIRES-k": 23.334199912345706,
+      "CLS HIRES-j": 22.74599137752072,
+      "SOPHIE+": 12.783834509477805
+    }
+  },
+  "keplerian_fit": {
+    "period_days": 6.2764011086704965,
+    "period_uncertainty_days": 2.5730459326245058e-05,
+    "conjunction_bjd": 2455560.3567477805,
+    "conjunction_uncertainty_days": 0.021986613168617507,
+    "semiamplitude_m_per_s": 193.823954077939,
+    "semiamplitude_uncertainty_m_per_s": 2.8434902783881135,
+    "gamma_m_per_s": 60.24929030336408,
+    "eccentricity": 0.13653301430983658,
+    "eccentricity_uncertainty": 0.013812919726662832,
+    "omega_degrees": 43.85781928767145,
+    "omega_uncertainty_degrees": 5.759057265730079,
+    "periapsis_bjd": 2455559.735538844,
+    "periapsis_uncertainty_days": 0.09755189164746168,
+    "phase_on_2027-07-01": 0.28649983720424643,
+    "phase_uncertainty_on_2027-07-01": 0.00552084860833159,
+    "phase_uncertainty_hours_on_2027-07-01": 0.8316254478272247,
+    "reduced_chi_squared": 1.0784384185463145,
+    "jitter_m_per_s": {
+      "ExoArchive": 182.58627603581826,
+      "Teklu": 16.488748798334644,
+      "CLS Lick": 14.7764032165056,
+      "CLS HIRES-k": 14.7764032165056,
+      "CLS HIRES-j": 13.064057634676557,
+      "SOPHIE+": 10.988309779149578
+    }
+  }
+}

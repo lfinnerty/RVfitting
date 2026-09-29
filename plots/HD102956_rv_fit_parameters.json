@@ -1,0 +1,110 @@
+{
+  "input_star": "HD102956",
+  "source": "all",
+  "includes_synthetics": false,
+  "measurement_count": 36,
+  "orbit_fit_excluded_count": 0,
+  "periodogram_peak_period_days": 6.494108710517968,
+  "periodogram_false_alarm_probability": 0.001,
+  "periodogram_false_alarm_threshold": 0.6417829628964097,
+  "orbit_model": "keplerian",
+  "eccentricity_significance": 3.4324085341396615,
+  "period_days": 6.494335830672241,
+  "period_uncertainty_days": 0.00018075671684083283,
+  "conjunction_bjd": 2456009.903341115,
+  "conjunction_uncertainty_days": 0.07729981493688953,
+  "semiamplitude_m_per_s": 74.12972543471852,
+  "semiamplitude_uncertainty_m_per_s": 2.378555641000009,
+  "gamma_m_per_s": -21.214304980242307,
+  "eccentricity": 0.1048550640185277,
+  "eccentricity_uncertainty": 0.030548538431719577,
+  "omega_degrees": -40.47015119189939,
+  "omega_uncertainty_degrees": 16.15551448528876,
+  "periapsis_bjd": 2456007.7232129057,
+  "periapsis_uncertainty_days": 0.2806542678666813,
+  "phase_on_2027-07-01": 0.8401961817958181,
+  "phase_uncertainty_on_2027-07-01": 0.026958235981471564,
+  "phase_uncertainty_hours_on_2027-07-01": 4.201820108788522,
+  "reduced_chi_squared": 1.199999999999998,
+  "jitter_m_per_s": {
+    "Teklu": 8.392372037778822
+  },
+  "source_offsets_m_per_s": {},
+  "outer_signal": {
+    "flag": "outer_candidate",
+    "baseline_days": 5525.93451000005,
+    "median_noise_m_per_s": 4.615035755407252,
+    "short_term_jitter_m_per_s": {
+      "Teklu": 4.4313626590914055
+    },
+    "amplitude_uncertainty_m_per_s": 1.0907177909897128,
+    "long_period_peak": {
+      "period_days": 279.0507084174396,
+      "semiamplitude_m_per_s": 11.202348485592305,
+      "amplitude_significance": 10.270620483257488,
+      "delta_chi_squared": 47.860612646923585,
+      "false_alarm_probability": 3.71432417082867e-09,
+      "conjunction_bjd": -100.19193568425217
+    },
+    "short_period_peak": {
+      "period_days": 57.165520338018176,
+      "semiamplitude_m_per_s": 9.236820827551641,
+      "amplitude_significance": 8.468570792423023,
+      "delta_chi_squared": 42.20016752128805,
+      "false_alarm_probability": 3.1591812460982615e-07,
+      "conjunction_bjd": -26.72318475296593
+    },
+    "trend_reference_bjd": 2456012.1994471685,
+    "trend_slope_m_per_s_per_yr": 0.8214983044420295,
+    "trend_curvature_m_per_s_per_yr2": 0.08097627674283743,
+    "vetting": {
+      "fitted_significance": 5.65247925293466,
+      "exposure_level_significance": 4.77948148733496,
+      "yearly_alias_offset": 0.3101445725110973,
+      "independent_nights": 36,
+      "observing_seasons": 17,
+      "rejection_reasons": [
+        "fitted significance 5.7 < 20"
+      ]
+    },
+    "model": null
+  },
+  "circular_fit": {
+    "period_days": 6.494284311531354,
+    "period_uncertainty_days": 0.0002251914594971586,
+    "conjunction_bjd": 2456010.0673668524,
+    "conjunction_uncertainty_days": 0.035859024922463546,
+    "semiamplitude_m_per_s": 74.14087878509113,
+    "semiamplitude_uncertainty_m_per_s": 2.7036092013250688,
+    "gamma_m_per_s": -21.443039018969586,
+    "phase_on_2027-07-01": 0.8217524206935423,
+    "phase_uncertainty_on_2027-07-01": 0.031408645294920406,
+    "phase_uncertainty_hours_on_2027-07-01": 4.895440137246112,
+    "reduced_chi_squared": 1.1249999999999456,
+    "jitter_m_per_s": {
+      "Teklu": 9.797765694236146
+    }
+  },
+  "keplerian_fit": {
+    "period_days": 6.494335830672241,
+    "period_uncertainty_days": 0.00018075671684083283,
+    "conjunction_bjd": 2456009.903341115,
+    "conjunction_uncertainty_days": 0.07729981493688953,
+    "semiamplitude_m_per_s": 74.12972543471852,
+    "semiamplitude_uncertainty_m_per_s": 2.378555641000009,
+    "gamma_m_per_s": -21.214304980242307,
+    "eccentricity": 0.1048550640185277,
+    "eccentricity_uncertainty": 0.030548538431719577,
+    "omega_degrees": -40.47015119189939,
+    "omega_uncertainty_degrees": 16.15551448528876,
+    "periapsis_bjd": 2456007.7232129057,
+    "periapsis_uncertainty_days": 0.2806542678666813,
+    "phase_on_2027-07-01": 0.8401961817958181,
+    "phase_uncertainty_on_2027-07-01": 0.026958235981471564,
+    "phase_uncertainty_hours_on_2027-07-01": 4.201820108788522,
+    "reduced_chi_squared": 1.199999999999998,
+    "jitter_m_per_s": {
+      "Teklu": 8.392372037778822
+    }
+  }
+}

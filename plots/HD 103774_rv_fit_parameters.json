@@ -1,0 +1,116 @@
+{
+  "input_star": "HD 103774",
+  "source": "all",
+  "includes_synthetics": false,
+  "measurement_count": 122,
+  "orbit_fit_excluded_count": 3,
+  "periodogram_peak_period_days": 5.888222361633854,
+  "periodogram_false_alarm_probability": 0.001,
+  "periodogram_false_alarm_threshold": 0.24045442692863925,
+  "orbit_model": "circular",
+  "eccentricity_significance": 0.4512407348803774,
+  "period_days": 5.88790525146703,
+  "period_uncertainty_days": 0.00030935212431163557,
+  "conjunction_bjd": 2455272.4138855725,
+  "conjunction_uncertainty_days": 0.045808236330805906,
+  "semiamplitude_m_per_s": 35.27258220471474,
+  "semiamplitude_uncertainty_m_per_s": 1.866251141342938,
+  "gamma_m_per_s": 0.7685485940706052,
+  "eccentricity": 0.0,
+  "eccentricity_uncertainty": null,
+  "omega_degrees": null,
+  "omega_uncertainty_degrees": null,
+  "periapsis_bjd": null,
+  "periapsis_uncertainty_days": null,
+  "phase_on_2027-07-01": 0.5522651462629256,
+  "phase_uncertainty_on_2027-07-01": 0.05679316945664304,
+  "phase_uncertainty_hours_on_2027-07-01": 8.025427216589412,
+  "reduced_chi_squared": 1.0234505953117143,
+  "jitter_m_per_s": {
+    "HARPS-pre": 12.868652986053492,
+    "HARPS-post": 12.868652986053492
+  },
+  "source_offsets_m_per_s": {
+    "HARPS-post": 16.56225311053569
+  },
+  "outer_signal": {
+    "flag": "outer_candidate",
+    "baseline_days": 4849.971188000403,
+    "median_noise_m_per_s": 4.781188717426129,
+    "short_term_jitter_m_per_s": {
+      "HARPS-pre": 2.8846465078137244,
+      "HARPS-post": 2.8846465078137244
+    },
+    "amplitude_uncertainty_m_per_s": 0.5799746713057148,
+    "long_period_peak": {
+      "period_days": 745.2510047652379,
+      "semiamplitude_m_per_s": 14.709674845108959,
+      "amplitude_significance": 25.36261594319734,
+      "delta_chi_squared": 365.11726746065926,
+      "false_alarm_probability": 4.1839456737600286e-78,
+      "conjunction_bjd": -268.8020305217636
+    },
+    "short_period_peak": {
+      "period_days": 19.339941014905264,
+      "semiamplitude_m_per_s": 7.22598732459318,
+      "amplitude_significance": 12.459142928302528,
+      "delta_chi_squared": 145.64310927486022,
+      "false_alarm_probability": 9.562216444962951e-30,
+      "conjunction_bjd": -9.157063819314573
+    },
+    "trend_reference_bjd": 2455447.917800071,
+    "trend_slope_m_per_s_per_yr": 1.0427056500392213,
+    "trend_curvature_m_per_s_per_yr2": -0.2895245600956166,
+    "vetting": {
+      "fitted_significance": 7.716098088096525,
+      "exposure_level_significance": 7.830408943059118,
+      "yearly_alias_offset": 0.5099387651687051,
+      "independent_nights": 115,
+      "observing_seasons": 10,
+      "rejection_reasons": [
+        "fitted significance 7.7 < 20"
+      ]
+    },
+    "model": null
+  },
+  "circular_fit": {
+    "period_days": 5.88790525146703,
+    "period_uncertainty_days": 0.00030935212431163557,
+    "conjunction_bjd": 2455272.4138855725,
+    "conjunction_uncertainty_days": 0.045808236330805906,
+    "semiamplitude_m_per_s": 35.27258220471474,
+    "semiamplitude_uncertainty_m_per_s": 1.866251141342938,
+    "gamma_m_per_s": 0.7685485940706052,
+    "phase_on_2027-07-01": 0.5522651462629256,
+    "phase_uncertainty_on_2027-07-01": 0.05679316945664304,
+    "phase_uncertainty_hours_on_2027-07-01": 8.025427216589412,
+    "reduced_chi_squared": 1.0234505953117143,
+    "jitter_m_per_s": {
+      "HARPS-pre": 12.868652986053492,
+      "HARPS-post": 12.868652986053492
+    }
+  },
+  "keplerian_fit": {
+    "period_days": 5.8878936846960634,
+    "period_uncertainty_days": 0.000313488133185114,
+    "conjunction_bjd": 2455272.3854727973,
+    "conjunction_uncertainty_days": 0.10587443002726807,
+    "semiamplitude_m_per_s": 35.29554418043133,
+    "semiamplitude_uncertainty_m_per_s": 1.8879177342142057,
+    "gamma_m_per_s": 0.8613826081485386,
+    "eccentricity": 0.023541212311729058,
+    "eccentricity_uncertainty": 0.052169962709527465,
+    "omega_degrees": 44.87706387319897,
+    "omega_uncertainty_degrees": 124.16446229212427,
+    "periapsis_bjd": 2455271.6783534363,
+    "periapsis_uncertainty_days": 2.0291213996310677,
+    "phase_on_2027-07-01": 0.5591978022725925,
+    "phase_uncertainty_on_2027-07-01": 0.05857963492568645,
+    "phase_uncertainty_hours_on_2027-07-01": 8.277855900738004,
+    "reduced_chi_squared": 1.040253957831743,
+    "jitter_m_per_s": {
+      "HARPS-pre": 12.864422191941811,
+      "HARPS-post": 12.864422191941811
+    }
+  }
+}

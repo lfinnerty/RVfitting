@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+
+# RV databases are not committed; rebuild them with download_rv_databases.py
+# (see RVdatabases/DATABASES.md). The SOPHIE archive forbids redistribution.
+RVdatabases/CLS/
+RVdatabases/HARPS/
+RVdatabases/HARPS_RVBank2/
+RVdatabases/Hebrard2016/
+RVdatabases/SOPHIE/
+RVdatabases/Synthetics/
+RVdatabases/simbad_cache.json
+*.part
+RVdatabases/exoplanet_archive_pscomppars_*.csv
+RVdatabases/NEID/

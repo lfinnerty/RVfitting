@@ -1,0 +1,100 @@
+{
+  "input_star": "HD2638",
+  "source": "all",
+  "includes_synthetics": false,
+  "measurement_count": 39,
+  "orbit_fit_excluded_count": 3,
+  "periodogram_peak_period_days": 3.443480146282571,
+  "periodogram_false_alarm_probability": 0.001,
+  "periodogram_false_alarm_threshold": 0.5983585623068116,
+  "orbit_model": "circular",
+  "eccentricity_significance": 0.9474884429020373,
+  "period_days": 3.4434013095880434,
+  "period_uncertainty_days": 4.4203043100280354e-05,
+  "conjunction_bjd": 2453585.7682598857,
+  "conjunction_uncertainty_days": 0.010569400199740172,
+  "semiamplitude_m_per_s": 69.79648604140607,
+  "semiamplitude_uncertainty_m_per_s": 1.447568356755693,
+  "gamma_m_per_s": -1.9016337889267294,
+  "eccentricity": 0.0,
+  "eccentricity_uncertainty": null,
+  "omega_degrees": null,
+  "omega_uncertainty_degrees": null,
+  "periapsis_bjd": null,
+  "periapsis_uncertainty_days": null,
+  "phase_on_2027-07-01": 0.7871571442187815,
+  "phase_uncertainty_on_2027-07-01": 0.029865194809709193,
+  "phase_uncertainty_hours_on_2027-07-01": 2.468108422052512,
+  "reduced_chi_squared": 1.1249999999999998,
+  "jitter_m_per_s": {
+    "HARPS-pre": 5.352492264603418
+  },
+  "source_offsets_m_per_s": {},
+  "outer_signal": {
+    "flag": "none",
+    "baseline_days": 3680.9233069000766,
+    "median_noise_m_per_s": 2.92689919911184,
+    "short_term_jitter_m_per_s": {
+      "HARPS-pre": 2.5729491016992654
+    },
+    "amplitude_uncertainty_m_per_s": 0.6906941543587806,
+    "long_period_peak": {
+      "period_days": 1053.818688277331,
+      "semiamplitude_m_per_s": 5.971129153430249,
+      "amplitude_significance": 8.645113203504183,
+      "delta_chi_squared": 54.03022955077952,
+      "false_alarm_probability": 1.1295984962745018e-10,
+      "conjunction_bjd": -309.7037719759169
+    },
+    "short_period_peak": {
+      "period_days": 13.823972786418953,
+      "semiamplitude_m_per_s": 4.825137604020373,
+      "amplitude_significance": 6.985925063315302,
+      "delta_chi_squared": 45.43090863304701,
+      "false_alarm_probability": 4.183878453157961e-08,
+      "conjunction_bjd": -4.583628551020143
+    },
+    "trend_reference_bjd": 2453606.147976493,
+    "trend_slope_m_per_s_per_yr": 3.276577649028941,
+    "trend_curvature_m_per_s_per_yr2": -0.3764320097889254,
+    "model": null
+  },
+  "circular_fit": {
+    "period_days": 3.4434013095880434,
+    "period_uncertainty_days": 4.4203043100280354e-05,
+    "conjunction_bjd": 2453585.7682598857,
+    "conjunction_uncertainty_days": 0.010569400199740172,
+    "semiamplitude_m_per_s": 69.79648604140607,
+    "semiamplitude_uncertainty_m_per_s": 1.447568356755693,
+    "gamma_m_per_s": -1.9016337889267294,
+    "phase_on_2027-07-01": 0.7871571442187815,
+    "phase_uncertainty_on_2027-07-01": 0.029865194809709193,
+    "phase_uncertainty_hours_on_2027-07-01": 2.468108422052512,
+    "reduced_chi_squared": 1.1249999999999998,
+    "jitter_m_per_s": {
+      "HARPS-pre": 5.352492264603418
+    }
+  },
+  "keplerian_fit": {
+    "period_days": 3.443400280177254,
+    "period_uncertainty_days": 4.762619666394461e-05,
+    "conjunction_bjd": 2453585.7626989423,
+    "conjunction_uncertainty_days": 0.026931967268790536,
+    "semiamplitude_m_per_s": 69.79033417904833,
+    "semiamplitude_uncertainty_m_per_s": 1.4723681811587743,
+    "gamma_m_per_s": -1.851844805219825,
+    "eccentricity": 0.01968039664476577,
+    "eccentricity_uncertainty": 0.020771120526269646,
+    "omega_degrees": 77.3643290306778,
+    "omega_uncertainty_degrees": 60.47742297666565,
+    "periapsis_bjd": 2453585.6464903047,
+    "periapsis_uncertainty_days": 0.5808091021355024,
+    "phase_on_2027-07-01": 0.7894668016260766,
+    "phase_uncertainty_on_2027-07-01": 0.03442761550481646,
+    "phase_uncertainty_hours_on_2027-07-01": 2.8451534610028744,
+    "reduced_chi_squared": 1.2000000000000002,
+    "jitter_m_per_s": {
+      "HARPS-pre": 5.266390156438115
+    }
+  }
+}

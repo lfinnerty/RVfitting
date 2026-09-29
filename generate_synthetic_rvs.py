@@ -68,8 +68,11 @@ def draw_synthetic_points(
 	orbit = plot_rvs.saved_orbit(parameters, period, semiamplitude, conjunction)
 	orbit[plot_rvs.ORBIT_GAMMA] = 0.0
 
+	outer, outer_parameters = plot_rvs.saved_outer_signal(parameters)
+
 	def model(times: np.ndarray) -> np.ndarray:
-		return plot_rvs.orbit_rv(times, orbit, np.empty((len(times), 0)))
+		rv = plot_rvs.orbit_rv(times, orbit, np.empty((len(times), 0)))
+		return rv + outer.evaluate(times, outer_parameters) if outer is not None else rv
 
 	reference_model = model(reference_times)
 	for source, offset in parameters.get("source_offsets_m_per_s", {}).items():

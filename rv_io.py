@@ -1,5 +1,6 @@
 """Readers, host lookups, and SIMBAD caching for the local RV databases."""
 
+import csv
 import gzip
 import json
 import re
@@ -23,6 +24,7 @@ RVBANK_TARGETS = DATABASE_ROOT / "HARPS_RVBank2" / "table1.dat.gz"
 # The 2020 RVBank release keeps ~3% of points (e.g. CoRoT hosts) absent from v2.
 RVBANK2020_DATABASE = DATABASE_ROOT / "HARPS" / "rvbank.dat"
 SOPHIE_DATABASE = DATABASE_ROOT / "SOPHIE"
+NEID_DATABASE = DATABASE_ROOT / "NEID" / "neid_l2.csv"
 HEBRARD_DATABASE = DATABASE_ROOT / "Hebrard2016" / "rvdata.dat"
 SYNTHETICS_DATABASE = DATABASE_ROOT / "Synthetics"
 SIMBAD_CACHE = DATABASE_ROOT / "simbad_cache.json"
@@ -34,7 +36,7 @@ SIMBAD_BATCH_SIZE = 500
 # files use the year in their REFERENCE header; SOPHIE archive pipeline RVs use
 # their observation year.
 ANALYSIS_YEAR = {
-	"Teklu": 2025, "RVBank": 2024, "CLS": 2021, "RVBank2020": 2020, "Hebrard": 2016,
+	"Teklu": 2025, "NEID": 2024, "RVBank": 2024, "CLS": 2021, "RVBank2020": 2020, "Hebrard": 2016,
 	"Synthetic": 9999,
 }
 
@@ -47,6 +49,7 @@ INSTRUMENT_DUPLICATE_TOLERANCE_DAYS = {"Hamilton": 1_800 / 86_400}
 # Instrument upgrades that introduce RV zero-point offsets, fitted separately.
 HARPS_FIBRE_UPGRADE_BJD = 2_457_174.5  # 2015-06-03
 SOPHIE_PLUS_UPGRADE_BJD = 2_455_730.5  # 2011-06-14
+NEID_CONTRERAS_FIRE_BJD = 2_459_745.5  # 2022-06-15; NEID resumed in late 2023
 # SOPHIE archive errors are photon noise only; add the instrumental floor in
 # quadrature (~5 m/s before the SOPHIE+ fibre upgrade, ~1.5 m/s after).
 SOPHIE_ERROR_FLOOR_M_S = {"SOPHIE": 5.0, "SOPHIE+": 1.5}
@@ -213,8 +216,12 @@ def simbad_records(identifiers: Iterable[str]) -> dict[str, dict]:
 		return records
 
 	print(f"Querying SIMBAD for {len(missing)} uncached identifier(s)")
-	simbad = Simbad()
-	simbad.add_votable_fields("ids", "rvz_radvel")
+	try:
+		simbad = Simbad()
+		simbad.add_votable_fields("ids", "rvz_radvel")  # contacts the server
+	except Exception as error:
+		print(f"Warning: SIMBAD unavailable: {error}", file=sys.stderr)
+		return records
 	updated = False
 	for start in range(0, len(missing), SIMBAD_BATCH_SIZE):
 		batch = missing[start:start + SIMBAD_BATCH_SIZE]
@@ -270,6 +277,9 @@ def _first_three_floats(fields: list[str]) -> Row | None:
 	try:
 		time, velocity, error = map(float, fields[:3])
 	except ValueError:
+		return None
+	# Some archive tables write missing values as NaN; zero errors would get infinite weight.
+	if not np.isfinite([time, velocity, error]).all() or error <= 0:
 		return None
 	return time, velocity, error
 
@@ -353,12 +363,22 @@ def _read_tbl_rows(text: str) -> list[Row]:
 	return rows
 
 
-def _matching_tbl_files(database: Path, star: str) -> Iterator[tuple[Path, str]]:
-	"""Yield (path, text) for each ``.tbl`` file whose STAR_ID matches ``star``."""
+@cache
+def _tbl_files(database: Path) -> tuple[tuple[Path, str, str], ...]:
+	"""(path, text, STAR_ID) for every ``.tbl`` file in ``database``, read once."""
+	files = []
 	for path in sorted(database.glob("*.tbl")):
 		text = path.read_text(encoding="utf-8")
 		star_id = tbl_star_id(text)
-		if star_id is not None and _matches(star_id, star):
+		if star_id is not None:
+			files.append((path, text, star_id))
+	return tuple(files)
+
+
+def _matching_tbl_files(database: Path, star: str) -> Iterator[tuple[Path, str]]:
+	"""Yield (path, text) for each ``.tbl`` file whose STAR_ID matches ``star``."""
+	for path, text, star_id in _tbl_files(database):
+		if _matches(star_id, star):
 			yield path, text
 
 
@@ -570,6 +590,25 @@ def read_sophie_rvs(database: Path, star: str) -> RVData:
 	return _merge(_relative_to_median(chunks))
 
 
+def read_neid_rvs(database: Path, star: str) -> RVData:
+	"""Return NEID L2 CCF RVs (barycentric, km/s in the archive table), split at the
+	2022 Contreras-fire shutdown, relative to each group's median."""
+	if not database.is_file():
+		return _merge([])
+	with database.open() as data_file:
+		rows = []
+		for row in csv.DictReader(data_file):
+			if catalog_key(row["target"]) not in identifier_keys(star) or row["obsmode"].lower() != "hr":
+				continue
+			parsed = _first_three_floats([row["ccfjdsum"], row["ccfrvmod"], row["dvrms"]])
+			if parsed is not None:
+				rows.append((parsed[0], parsed[1] * 1_000, parsed[2] * 1_000))
+	return _merge(_relative_to_median(_split_at(
+		rows, NEID_CONTRERAS_FIRE_BJD, ("NEID-pre", "NEID-post"),
+		instrument="NEID", year=ANALYSIS_YEAR["NEID"], dataset="NEID",
+	)))
+
+
 @cache
 def _hebrard_index(database: Path = HEBRARD_DATABASE) -> dict[str, list[Row]]:
 	index = defaultdict(list)
@@ -614,6 +653,7 @@ READERS = {
 	"HARPS": (read_rvbank_rvs, RVBANK_DATABASE),
 	"HARPS2020": (read_rvbank2020_rvs, RVBANK2020_DATABASE),
 	"SOPHIE": (read_sophie_rvs, SOPHIE_DATABASE),
+	"NEID": (read_neid_rvs, NEID_DATABASE),
 	"Hebrard": (read_hebrard_rvs, HEBRARD_DATABASE),
 	"Synthetic": (read_synthetic_rvs, SYNTHETICS_DATABASE),
 }

@@ -7,7 +7,11 @@ place of a valid one.
 """
 
 import argparse
+import csv
+import datetime
 import gzip
+import io
+import json
 import re
 import shutil
 import sys
@@ -38,6 +42,9 @@ VIZIER_CATALOGS = {
 }
 # The NASA Exoplanet Archive bulk-download script (tracked in git) lists every table.
 EXOARCHIVE_WGET_SCRIPT = rv_io.EXOARCHIVE_DATABASE / "wget_exoarchive_20260924.bat"
+NEID_TAP = "https://neid.ipac.caltech.edu/TAP/sync"
+NEID_SEARCH_RADIUS_DEG = 60 / 3600  # headers record requested coordinates; allow proper motion
+NEID_COLUMNS = "qobject, obsdate, obstype, obsmode, swversion, ccfjdsum, ccfrvmod, dvrms, l2filename, l2propint, program"
 SOPHIE_URL = "http://atlas.obs-hp.fr/sophie/sophie.cgi"
 SOPHIE_FIELDS = "seq,objname,bjd,mask,ccf_offline,rv,err"
 # The SOPHIE server drops connections after ~2 minutes, so query small RA bins.
@@ -163,7 +170,71 @@ def download_sophie(workers: int = 2, attempts: int = 4) -> None:
 		print(f"  {len(pending)} SOPHIE bins still missing; re-run to retry", file=sys.stderr)
 
 
-SOURCES = {"vizier": download_vizier, "exoarchive": download_exoarchive, "sophie": download_sophie}
+def fitted_targets() -> list[str]:
+	"""Stars with saved fits in plots/ (the default NEID target list)."""
+	names = []
+	for path in sorted((rv_io.DATABASE_ROOT.parent / "plots").glob("*_rv_fit_parameters.json")):
+		names.append(json.loads(path.read_text())["input_star"])
+	return names
+
+
+def _public(row: dict, today: datetime.date) -> bool:
+	observed = datetime.date.fromisoformat(row["obsdate"][:10])
+	months = observed.month - 1 + int(float(row["l2propint"] or 0))
+	return datetime.date(observed.year + months // 12, months % 12 + 1, min(observed.day, 28)) <= today
+
+
+def download_neid(targets: list[str] | None = None, refresh: bool = False) -> None:
+	"""Query NEID L2 CCF RVs (from the archive's metadata table) for ``targets``.
+
+	The table carries the barycentric CCF RV and its uncertainty, so no FITS files
+	are needed. Results for all targets are kept in one CSV; targets already
+	queried are skipped unless ``refresh``.
+	"""
+	targets = targets or fitted_targets()
+	path = rv_io.NEID_DATABASE
+	path.parent.mkdir(parents=True, exist_ok=True)
+	existing = list(csv.DictReader(path.open())) if path.is_file() else []
+	queried_path = path.with_name("queried_targets.json")
+	queried = json.loads(queried_path.read_text()) if queried_path.is_file() else {}
+	pending = [t for t in targets if refresh or t not in queried]
+	print(f"NEID: {len(pending)} of {len(targets)} targets to query")
+	records = rv_io.simbad_records(pending)
+	today = datetime.date.today()
+	rows = [row for row in existing if row["target"] not in pending]
+	for target in pending:
+		record = records.get(target)
+		if record is None:
+			print(f"  {target}: no SIMBAD position, skipped", file=sys.stderr)
+			continue
+		query = (
+			f"select {NEID_COLUMNS} from neidl2 where obstype = 'Sci' and contains(point('icrs', qrad, qdecd),"
+			f" circle('icrs', {record['ra_deg']}, {record['dec_deg']}, {NEID_SEARCH_RADIUS_DEG})) = 1"
+		)
+		try:
+			response = requests.get(NEID_TAP, params={"query": query, "format": "csv"}, timeout=180)
+			response.raise_for_status()
+		except requests.RequestException as error:
+			print(f"  {target}: query failed ({error}); will retry next run", file=sys.stderr)
+			continue
+		found = [row for row in csv.DictReader(io.StringIO(response.text)) if _public(row, today)]
+		rows.extend({"target": target, **row} for row in found)
+		queried[target] = today.isoformat()
+		print(f"  {target}: {len(found)} public NEID RVs")
+	if rows:
+		with path.open("w", newline="") as output:
+			writer = csv.DictWriter(output, fieldnames=["target", *[c.strip() for c in NEID_COLUMNS.split(",")]])
+			writer.writeheader()
+			writer.writerows(rows)
+	queried_path.write_text(json.dumps(queried, indent=1) + "\n")
+
+
+SOURCES = {
+	"vizier": download_vizier,
+	"exoarchive": download_exoarchive,
+	"sophie": download_sophie,
+	"neid": download_neid,
+}
 
 
 def main() -> None:

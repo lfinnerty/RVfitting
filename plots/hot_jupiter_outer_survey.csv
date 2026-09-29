@@ -1,0 +1,139 @@
+host,hot_jupiter,archive_period_days,n_points,baseline_days,sources,fitted_inner_period_days,seeded_with_archive_period,inner_matches_archive,flag,outer_model,outer_period_days,outer_period_uncertainty_days,outer_semiamplitude_m_per_s,outer_semiamplitude_uncertainty_m_per_s,outer_eccentricity,orbit_coverage,msini_mjup_per_mstar_msun_2_3,candidate_period_days,candidate_semiamplitude_m_per_s,candidate_fitted_significance,rejection_reasons,archive_other_planets,status
+51 Peg,51 Peg b,4.2307966,2835,10343.166299999692,CLS ExoArchive HARPS HARPS2020 NEID SOPHIE SOPHIE+ Teklu,4.230792189351829,False,True,trend_candidate,,,,,,,,,31029.498899999075,28.804605960369006,17.120303351213593,implied amplitude only 1.2x the per-point noise; fitted significance 17.1 < 20,,new candidate (not in Archive)
+BD-06 1339,BD-06 1339 b,3.8728,120,2970.816561799962,HARPS,3.873113849754834,True,True,outer_candidate,,,,,,,,,125.59357563198624,7.816165716842898,15.034540677554348,period within 3.0% of a yearly harmonic; fitted significance 15.0 < 20,BD-06 1339 c (125.9 d),matches listed planet
+BD-08 2823,BD-08 2823 b,5.6,114,5208.811083799694,ExoArchive HARPS SOPHIE+,5.5966838579166565,False,True,outer_candidate,,,,,,,,,242.04203110384478,10.907011556097707,12.106862727746755,fitted significance 12.1 < 20,BD-08 2823 c (237.6 d),matches listed planet
+BD-10 3166,BD-10 3166 b,3.48777,41,8577.696539999917,CLS Teklu,3.487942087267004,False,True,none,,,,,,,,,,,,,,no outer signal
+CoRoT-1,CoRoT-1 b,1.5089557,61,1775.3855599998496,ExoArchive HARPS2020,1.50941882381793,True,True,outer_candidate,,,,,,,,,89.05443138040674,254.95915515664495,5.348390783714137,fitted significance 5.3 < 20,,new candidate (not in Archive)
+CoRoT-16,CoRoT-16 b,5.35227,31,417.87480999995023,ExoArchive,5.33930934079064,False,True,none,,,,,,,,,,,,,,no outer signal
+CoRoT-25,CoRoT-25 b,4.86069,39,1503.7313759997487,ExoArchive HARPS2020,4.8490337637105885,True,True,none,,,,,,,,,,,,,,no outer signal
+CoRoT-26,CoRoT-26 b,4.20474,24,804.9263900001533,ExoArchive,4.207578541067775,True,True,none,,,,,,,,,,,,,,no outer signal
+DMPP-2,DMPP-2 c,3.168,48,475.8612672002055,HARPS,3.194111841248503,True,True,none,,,,,,,,,,,,,DMPP-2 b (5.203 d); DMPP-2 d (16.49 d),no outer signal
+HAT-P-1,HAT-P-1 b,4.46529976,158,4447.9450699999,ExoArchive Teklu,4.465168219072525,False,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-12,HAT-P-12 b,3.2130598,36,5174.830090000294,ExoArchive Teklu,3.2129931161496215,False,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-13,HAT-P-13 b,2.91625,155,4998.182180000003,ExoArchive Teklu,2.919076317367485,False,True,outer_candidate,,,,,,,,,412.3407280797837,87.57931469769836,10.463108196355199,fitted significance 10.5 < 20,HAT-P-13 c (446.3 d),matches listed planet
+HAT-P-14,HAT-P-14 b,4.62767,36,4782.082729999907,Teklu,4.627655948729224,False,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-16,HAT-P-16 b,2.77596727,58,3108.2129011596553,ExoArchive SOPHIE SOPHIE+,2.7759741960335944,False,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-18,HAT-P-18 b,5.5080291,34,5362.270750000142,ExoArchive Teklu,5.507840081162683,True,True,outer_candidate,,,,,,,,,318.3033714347333,8.60489835413149,3.7026708844602103,fitted significance 3.7 < 20,,new candidate (not in Archive)
+HAT-P-2,HAT-P-2 b,5.6335158,304,5780.141330000013,ExoArchive SOPHIE Teklu,5.633403244166915,False,True,trend_candidate,,,,,,,,,17340.42399000004,263.43815714630244,10.56465438176963,fitted significance 10.6 < 20,HAT-P-2 c (8500 d),matches listed planet
+HAT-P-21,HAT-P-21 b,4.12448,43,1102.480246399995,ExoArchive SOPHIE+,4.123854124310078,False,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-23,HAT-P-23 b,1.212884,50,3352.326895629987,ExoArchive SOPHIE SOPHIE+,1.2129167597622426,False,True,possible_activity,,,,,,,,,,,,,,no outer signal
+HAT-P-29,HAT-P-29 b,5.72319,33,372.6818652898073,ExoArchive SOPHIE+,5.716985440365019,False,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-3,HAT-P-3 b,2.8997,22,1162.8166809999384,ExoArchive Teklu,2.8998042146362546,False,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-32,HAT-P-32 b,2.1500082,112,5488.125409999862,Teklu,2.1498062365122337,True,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-36,HAT-P-36 b,1.32734683,41,2593.982201529667,SOPHIE+,1.3273342195202718,False,True,outer_candidate,,,,,,,,,1222.36220418775,62.3281020742324,5.235795965314828,fitted significance 5.2 < 20,,new candidate (not in Archive)
+HAT-P-39,HAT-P-39 b,3.54387,28,744.9494499997236,ExoArchive,3.5411748257681186,True,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-4,HAT-P-4 b,3.056536,83,5553.822629999835,SOPHIE Teklu,3.056377351535997,False,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-40,HAT-P-40 b,4.45724,48,2812.642098960001,ExoArchive SOPHIE+,4.457034564889205,False,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-41,HAT-P-41 b,2.69405,54,4801.43572708033,ExoArchive SOPHIE+,2.694015436020755,True,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-5,HAT-P-5 b,2.78849,83,4132.821914289612,ExoArchive SOPHIE SOPHIE+,2.78849759992918,False,True,possible_activity,,,,,,,,,,,,,,no outer signal
+HAT-P-6,HAT-P-6 b,3.85298,27,5093.362949999981,ExoArchive Teklu,3.8529558377700694,False,True,none,,,,,,,,,,,,,,no outer signal
+HAT-P-7,HAT-P-7 b,2.20474,191,5404.360390000045,ExoArchive SOPHIE Teklu,2.2047193761948938,False,True,trend,trend,,,,,,,,,,28.448869524314205,,,new trend (not in Archive)
+HAT-P-8,HAT-P-8 b,3.07634,69,5497.199779999908,ExoArchive SOPHIE Teklu,3.076309343650515,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 10180,HD 10180 c,5.75969,336,5048.101777300239,HARPS,5.759804555824477,False,True,outer_candidate,,,,,,,,,122.94961227632672,3.4647590238428143,10.164028173664676,period within 0.8% of a yearly harmonic; fitted significance 10.2 < 20,HD 10180 d (16.36 d); HD 10180 e (49.75 d); HD 10180 h (2205 d); HD 10180 f (122.7 d); HD 10180 g (604.7 d),matches listed planet
+HD 102195,HD 102195 b,4.11377,133,6239.879222129937,ExoArchive HARPS NEID SOPHIE SOPHIE+ Teklu,4.113246907649516,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 102956,HD 102956 b,6.4947,36,5525.93451000005,Teklu,6.494335830672241,False,True,outer_candidate,,,,,,,,,279.0507084174396,11.202348485592305,5.65247925293466,fitted significance 5.7 < 20,,new candidate (not in Archive)
+HD 103720,HD 103720 b,4.5557,86,5941.846072500106,HARPS,4.555689428765403,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 103774,HD 103774 b,5.8881,122,4849.971188000403,HARPS,5.88790525146703,False,True,outer_candidate,,,,,,,,,745.2510047652379,14.709674845108959,7.716098088096525,fitted significance 7.7 < 20,,new candidate (not in Archive)
+HD 109749,HD 109749 b,5.239891,35,5901.848120000213,ExoArchive Teklu,5.239971168042377,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 118203,HD 118203 b,6.1349779,139,6187.195864010137,ExoArchive SOPHIE+,6.135188671314842,False,True,outer_candidate,,,,,,,,,5355.927473275824,128.6231732370316,5.556384736073558,fitted significance 5.6 < 20,HD 118203 c (5103 d),matches listed planet
+HD 143105,HD 143105 b,2.1974,115,2888.9640129897743,Hebrard SOPHIE+,2.197741167481534,False,True,outer_candidate,,,,,,,,,245.21870000374435,15.278474306102762,5.863447380400159,fitted significance 5.9 < 20,,new candidate (not in Archive)
+HD 149026,HD 149026 b,2.87589,84,6533.894043999724,ExoArchive SOPHIE+ Teklu,2.8759116593172873,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 149143,HD 149143 b,4.07182,98,6218.896720000077,ExoArchive HARPS SOPHIE Teklu,4.07179663461487,False,True,trend_candidate,,,,,,,,,18656.69016000023,32.60044588760161,6.864669791149176,fitted significance 6.9 < 20,,new candidate (not in Archive)
+HD 168746,HD 168746 b,6.404,250,8110.981320000254,CLS ExoArchive HARPS Teklu,6.404350941177306,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 176986,HD 176986 b,6.49164,243,6311.792983599938,HARPS,6.490928255485354,False,True,outer_candidate,,,,,,,,,297.26175511237625,2.257360690338927,5.23171073463246,fitted significance 5.2 < 20,HD 176986 c (16.81 d); HD 176986 d (61.38 d),new candidate (not in Archive)
+HD 179949,HD 179949 b,3.092514,177,8414.794498999603,CLS ExoArchive HARPS HARPS2020 Teklu,3.092538798566514,False,True,outer_candidate,,,,,,,,,1432.9060065540807,9.485235534744085,4.545715822997691,fitted significance 4.5 < 20,,new candidate (not in Archive)
+HD 185269,HD 185269 b,6.83776,136,6678.730659999885,ExoArchive Teklu,6.837963252626156,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 187123,HD 187123 b,3.0965828,383,8907.42081000004,CLS ExoArchive Teklu,3.0965995051706248,False,True,outer_planet,keplerian,3292.806262658964,14.81239316866875,24.312747671747946,0.33649041361321563,0.25290096693346054,multiple_cycles,1.721811732231901,,,61.027404469456386,,HD 187123 c (3810 d),matches listed planet
+HD 189733,HD 189733 b,2.21857567,284,7307.663181560114,CLS HARPS SOPHIE+ Teklu,2.218564469872558,False,True,outer_candidate,,,,,,,,,73.04738707916532,8.76960503449405,2.557889492484371,fitted significance 2.6 < 20,,new candidate (not in Archive)
+HD 209458,HD 209458 b,3.52474859,398,9075.599309999961,CLS ExoArchive HARPS SOPHIE+ Teklu,3.5247351591911267,False,True,outer_candidate,,,,,,,,,473.78193255886544,4.235504582683158,5.207443454233792,fitted significance 5.2 < 20,,new candidate (not in Archive)
+HD 212301,HD 212301 b,2.24571,23,722.9440299002454,ExoArchive,2.245726407633906,False,True,outer_candidate,,,,,,,,,677.2076797124643,607.8958114115244,1.4439155071338043,only 3 observing seasons; fitted significance 1.4 < 20,,new candidate (not in Archive)
+HD 215152,HD 215152 c,7.28243,555,8566.712009999901,CLS HARPS HARPS2020 SOPHIE Teklu,7.283747494540739,True,True,outer_candidate,,,,,,,,,330.8905034414255,1.2661789739217435,9.900082850289895,fitted significance 9.9 < 20,HD 215152 e (25.2 d); HD 215152 d (10.86 d); HD 215152 b (5.76 d),new candidate (not in Archive)
+HD 215497,HD 215497 b,3.93404,117,5057.1331458999775,HARPS,3.9367437507507015,True,True,outer_candidate,,,,,,,,,561.3531963744214,9.46938897842254,18.955264011555915,fitted significance 19.0 < 20,HD 215497 c (566 d),matches listed planet
+HD 217107,HD 217107 b,7.1270166,918,9637.729515890125,CLS ExoArchive NEID SOPHIE+ Teklu,7.126865914122984,False,True,outer_planet,keplerian,5115.156760188335,10.305786353534822,51.1485261311188,0.4662177490271859,0.3822012676003297,multiple_cycles,4.006920174070213,,,37.912890597188955,,HD 217107 c (5139 d),matches listed planet
+HD 2638,HD 2638 b,3.4442,39,3680.9233069000766,HARPS,3.4434013095880434,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 330075,HD 330075 b,3.38773,62,4275.355339299887,ExoArchive HARPS,3.3880503035347047,False,True,outer_candidate,,,,,,,,,93.16873927044314,3.999054314493861,8.751594914809676,fitted significance 8.8 < 20,,new candidate (not in Archive)
+HD 40307,HD 40307 b,4.3123,479,5639.7227063002065,ExoArchive HARPS,4.310453018477108,False,True,outer_candidate,,,,,,,,,389.2817861791288,1.570516784696602,4.690062162266862,fitted significance 4.7 < 20,HD 40307 c (9.618 d); HD 40307 d (20.43 d); HD 40307 f (51.76 d); HD 40307 g (197.8 d),new candidate (not in Archive)
+HD 41004 B,HD 41004 B b,1.3283,163,1107.000110000372,ExoArchive,1.3283136578207515,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 46375,HD 46375 b,3.023573,1274,8522.72771999985,CLS ExoArchive HARPS HARPS2020 SOPHIE+ Teklu,3.0234895680890066,False,True,outer_candidate,,,,,,,,,353.17429912211884,3.436909108915383,5.900969321205236,period within 3.5% of a yearly harmonic; fitted significance 5.9 < 20,,new candidate (not in Archive)
+HD 63454,HD 63454 b,2.81805,46,2919.0975791998208,ExoArchive HARPS,2.818143801477235,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 68988,HD 68988 b,6.27711,110,9518.41447865963,CLS ExoArchive SOPHIE+ Teklu,6.2764011086704965,False,True,outer_planet,sinusoid,9573.146593459911,229.5646638175652,99.29699872262287,3.1859997091573207,,partial_orbit,10.373766284111339,,,32.54107117726596,,HD 68988 c (1.6e+04 d),matches listed planet
+HD 75289,HD 75289 b,3.50927,139,5136.606043800246,ExoArchive HARPS HARPS2020,3.5091797325517233,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 76700,HD 76700 b,3.97097,149,7424.373712600209,ExoArchive HARPS,3.971463307899045,False,True,none,,,,,,,,,,,,,,no outer signal
+HD 7924,HD 7924 b,5.39792,1504,7701.930930000264,CLS ExoArchive SOPHIE+ Teklu,5.397365730849195,False,True,outer_candidate,,,,,,,,,2723.904452975853,2.4585805284275444,10.841664258927329,fitted significance 10.8 < 20,HD 7924 d (24.45 d); HD 7924 c (15.3 d),new candidate (not in Archive)
+HD 83443,HD 83443 b,2.985628,422,9500.559369999915,CLS ExoArchive HARPS Teklu,2.985619976301203,False,True,outer_candidate,,,,,,,,,5941.067920270312,14.245793507595058,12.268103664921949,fitted significance 12.3 < 20,HD 83443 c (8241 d),new candidate (not in Archive)
+HD 86081,HD 86081 b,2.1378431,59,5819.974080000073,HARPS NEID Teklu,2.1378372192163706,False,True,outer_candidate,,,,,,,,,804.1674515832467,5.584669051251031,5.6070717083158454,fitted significance 5.6 < 20,,new candidate (not in Archive)
+HD 88133,HD 88133 b,3.414884,107,6497.1990100000985,HARPS Teklu,3.414845859649541,False,True,none,,,,,,,,,,,,,,no outer signal
+HIP 14810,HIP 14810 b,6.673892,127,5811.161979999859,ExoArchive NEID Teklu,6.673881740825177,False,True,outer_planet,keplerian,147.9136629589042,0.0673870784636795,49.96109657134971,1.5622578122726667,0.16895089086845702,multiple_cycles,1.2813318969684635,,,29.174924064814284,,HIP 14810 d (981.8 d); HIP 14810 c (147.7 d),matches listed planet
+HIP 91258,HIP 91258 b,5.0505,64,3336.0406030300073,SOPHIE+,5.053984564788557,False,True,outer_candidate,,,,,,,,,3720.349454859051,84.85881760048662,7.439741786986069,fitted significance 7.4 < 20,,new candidate (not in Archive)
+KELT-11,KELT-11 b,4.73620865,378,5169.870349999983,HARPS Teklu,4.735743414296667,False,True,outer_candidate,,,,,,,,,64.01855707041469,7.862284376435621,3.1475704062497876,fitted significance 3.1 < 20,,new candidate (not in Archive)
+KELT-12,KELT-12 b,5.031623,66,4847.826681610197,SOPHIE+,5.031872119790321,False,True,outer_candidate,,,,,,,,,4312.402018350788,44.88870447056991,5.751098854087316,fitted significance 5.8 < 20,,new candidate (not in Archive)
+KELT-2 A,KELT-2 A b,4.11379,72,1828.2299068295397,SOPHIE+,4.1134680279783336,False,True,none,,,,,,,,,,,,,,no outer signal
+KELT-3,KELT-3 b,2.70339,59,846.8213017801754,SOPHIE+,2.703350373155206,False,True,none,,,,,,,,,,,,,,no outer signal
+KELT-6,KELT-6 b,7.8457,40,474.77599500026554,ExoArchive,7.865903175327616,False,True,outer_candidate,,,,,,,,,66.33182830479306,20.033166742723537,5.101312304645052,fitted significance 5.1 < 20,KELT-6 c (1276 d),new candidate (not in Archive)
+KOI-13,KOI-13 b,1.763588,46,546.8259778600186,SOPHIE SOPHIE+,1.7645909777672635,True,True,outer_candidate,,,,,,,,,67.59179611550306,4799.438423551428,4.961313827634241,fitted significance 5.0 < 20,,new candidate (not in Archive)
+OGLE-TR-10,OGLE-TR-10 b,3.101278,25,727.9780999999493,ExoArchive,3.0993087139711726,False,True,none,,,,,,,,,,,,,,no outer signal
+OGLE-TR-113,OGLE-TR-113 b,1.4324752,20,395.0166400000453,ExoArchive,1.43255390789845,True,True,none,,,,,,,,,,,,,,no outer signal
+OGLE-TR-182,OGLE-TR-182 b,3.9791,24,417.9093000004068,ExoArchive,3.9809557299939553,False,True,none,,,,,,,,,,,,,,no outer signal
+OGLE-TR-211,OGLE-TR-211 b,3.67724,20,415.80278000002727,ExoArchive,3.674348701895776,True,True,none,,,,,,,,,,,,,,no outer signal
+TOI-5806,TOI-5806 b,3.1856381,59,824.8910133801401,SOPHIE+,3.1863293462671267,False,True,none,,,,,,,,,,,,,,no outer signal
+TOI-5882,TOI-5882 b,7.148972,26,583.2555118002929,SOPHIE+,7.148575673697553,False,True,none,,,,,,,,,,,,,,no outer signal
+TrES-1,TrES-1 b,3.03007,27,2264.0789899998344,ExoArchive Teklu,3.0299731286553477,False,True,none,,,,,,,,,,,,,,no outer signal
+TrES-2,TrES-2 b,2.47063,84,5435.311329999939,ExoArchive Teklu,2.4706223641060476,False,True,none,,,,,,,,,,,,,,no outer signal
+TrES-3,TrES-3 b,1.30618581,51,5471.093909999821,ExoArchive Teklu,1.30619104117528,True,True,outer_candidate,,,,,,,,,1006.3938617409069,321.5433719475578,9.481122624462747,fitted significance 9.5 < 20,,new candidate (not in Archive)
+TrES-4,TrES-4 b,3.55395,43,5197.8654299997725,ExoArchive Teklu,3.5535972105195572,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-1,WASP-1 b,2.5199454,78,5845.4447099999525,ExoArchive Teklu,2.51993193191155,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-107,WASP-107 b,5.7214875,101,1436.3305718000047,HARPS,5.730287473114986,True,True,outer_candidate,,,,,,,,,87.53312099909537,21.01729907520363,0.4137099827948913,only 3 observing seasons; fitted significance 0.4 < 20,WASP-107 c (1091 d),new candidate (not in Archive)
+WASP-11,WASP-11 b,3.72247,23,1754.106643250212,ExoArchive SOPHIE+,3.7155186229544066,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-127,WASP-127 b,4.17806203,150,397.2033347999677,HARPS,4.177177347693123,True,True,possible_activity,,,,,,,,,,,,,,no outer signal
+WASP-129,WASP-129 b,5.748145,39,441.99677590001374,HARPS,5.762295775946266,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-13,WASP-13 b,4.35301,75,1485.1582844797522,ExoArchive SOPHIE SOPHIE+,4.354734410699349,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-132,WASP-132 b,7.1335164,22,391.0696236998774,HARPS,7.077879112139389,False,True,none,,,,,,,,,,,,,WASP-132 c (1.012 d); WASP-132 d (1817 d),no outer signal
+WASP-14,WASP-14 b,2.24375,247,6385.6645719497465,ExoArchive SOPHIE SOPHIE+ Teklu,2.2437725004806506,False,True,outer_candidate,,,,,,,,,762.5252634396107,60.5791698290202,2.217841167455395,fitted significance 2.2 < 20,,new candidate (not in Archive)
+WASP-15,WASP-15 b,3.7521,77,3792.767543300055,ExoArchive HARPS,3.752634908801479,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-16,WASP-16 b,3.1186,108,1159.6366122998297,ExoArchive HARPS,3.1186461650285993,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-17,WASP-17 b,3.73543,126,3244.166625900194,ExoArchive HARPS HARPS2020,3.7369296548615973,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-187,WASP-187 b,5.147878,34,1793.029235219583,SOPHIE+,5.156038772764698,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-189,WASP-189 b,2.724033,412,420.1205678000115,HARPS,2.7027643376018973,False,True,outer_candidate,,,,,,,,,69.23443295272246,67.69548893275314,5.041962236718024,only 7 independent nights; only 3 observing seasons; fitted significance 5.0 < 20,,new candidate (not in Archive)
+WASP-190,WASP-190 b,5.367753,36,374.17396100005135,HARPS,5.385864479815278,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-2,WASP-2 b,2.152175,51,1412.2681900998577,ExoArchive HARPS,2.152191807176812,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-20,WASP-20 b,4.89964477,63,1130.006977699697,HARPS,4.897844945247273,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-21,WASP-21 b,4.322482,42,668.3056999999098,ExoArchive,4.323439283006109,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-22,WASP-22 b,3.53269,74,1903.9137498997152,ExoArchive HARPS,3.498686653691278,False,True,outer_candidate,,,,,,,,,336.4943125281802,57.91117789576161,6.172558975986133,fitted significance 6.2 < 20,,new candidate (not in Archive)
+WASP-25,WASP-25 b,3.7648337,83,605.6498934002593,ExoArchive HARPS HARPS2020,3.765150357968134,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-26,WASP-26 b,2.7566,49,2301.668441799935,ExoArchive HARPS HARPS2020,2.7566225665470125,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-29,WASP-29 b,3.92273,63,1124.190636599902,HARPS,3.922473140693079,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-3,WASP-3 b,1.84683,66,700.3976970002986,ExoArchive,1.846436628411955,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-31,WASP-31 b,3.4059096,56,2193.3112296001054,HARPS HARPS2020,3.405386122347493,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-33,WASP-33 b,1.21987,44,1366.181491009891,ExoArchive SOPHIE,1.2194264261399597,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-36,WASP-36 b,1.53736596,44,2513.1759329997003,ExoArchive HARPS,1.5374493499181987,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-38,WASP-38 b,6.87188,87,509.9070595097728,HARPS SOPHIE,6.872008889760417,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-4,WASP-4 b,1.338230994,63,2249.857063099742,ExoArchive HARPS,1.3382290048959036,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-41,WASP-41 b,3.0524,99,2210.301254599821,HARPS HARPS2020,3.052331065708272,False,True,outer_candidate,,,,,,,,,389.351136149247,37.65272383582803,4.902777506411896,period within 2.3% of a yearly harmonic; fitted significance 4.9 < 20,WASP-41 c (421 d),matches listed planet
+WASP-42,WASP-42 b,4.9816819,62,400.6462294002995,ExoArchive HARPS,4.982773317775836,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-44,WASP-44 b,2.423804,34,3070.8358697998337,ExoArchive HARPS,2.4238083206686265,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-45,WASP-45 b,3.126089,33,3037.840059199836,ExoArchive HARPS,3.122832185724269,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-46,WASP-46 b,1.43036763,32,3093.6850177999586,ExoArchive HARPS,1.4283307561541798,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-52,WASP-52 b,1.7497798,104,2959.910913400352,ExoArchive HARPS HARPS2020,1.7496907939140318,True,True,outer_candidate,,,,,,,,,355.05344623407893,49.20764813350398,6.911829487482235,period within 0.7% of a yearly harmonic; fitted significance 6.9 < 20,,new candidate (not in Archive)
+WASP-54,WASP-54 b,3.69364,66,647.0661082002334,ExoArchive HARPS,3.693507553229232,False,True,possible_activity,,,,,,,,,,,,,,no outer signal
+WASP-55,WASP-55 b,4.465631,59,2188.0575747000985,ExoArchive HARPS,4.4660429632095235,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-56,WASP-56 b,4.6171,21,2865.3144641802646,ExoArchive SOPHIE SOPHIE+,4.617293736896975,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-6,WASP-6 b,3.3610026,134,3654.9644403001294,ExoArchive HARPS,3.3609590993119682,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-60,WASP-60 b,4.305,42,2941.8783888900653,SOPHIE SOPHIE+,4.28075843620701,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-61,WASP-61 b,3.8559,48,715.0424941000529,ExoArchive HARPS,3.855944482562952,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-62,WASP-62 b,4.41195,64,2128.2595035000704,ExoArchive HARPS,4.413559238052836,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-63,WASP-63 b,4.37808,23,422.8209999999963,ExoArchive,4.377469178889906,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-66,WASP-66 b,4.08605,30,427.9791999999434,ExoArchive,4.085502558158839,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-7,WASP-7 b,4.9546416,32,1441.162835800089,ExoArchive HARPS HARPS2020,4.953536955500588,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-76,WASP-76 b,1.80988198,279,2130.36594469985,HARPS,1.8097456055010193,False,True,outer_candidate,,,,,,,,,104.26606715000041,13.548943604834054,1.519031987145231,only 9 independent nights; only 4 observing seasons; fitted significance 1.5 < 20,,new candidate (not in Archive)
+WASP-77 A,WASP-77 A b,1.360029395,25,2234.078349999618,ExoArchive HARPS HARPS2020,1.3625368026693587,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-78,WASP-78 b,2.17518,163,2253.0581380999647,ExoArchive HARPS HARPS2020,2.175148684889438,True,True,outer_candidate,,,,,,,,,62.2137686188547,104.20360874516439,0.5095878629725643,only 4 observing seasons; fitted significance 0.5 < 20,,new candidate (not in Archive)
+WASP-79,WASP-79 b,3.662392,67,1915.9054100997746,ExoArchive HARPS,3.662039257939206,True,True,none,,,,,,,,,,,,,,no outer signal
+WASP-80,WASP-80 b,3.06785234,60,365.13638689974323,HARPS HARPS2020,3.0676595715817223,False,True,none,,,,,,,,,,,,,,no outer signal
+WASP-93,WASP-93 b,2.7325321,76,1130.0466050398536,SOPHIE SOPHIE+,2.738600856186194,True,True,none,,,,,,,,,,,,,,no outer signal
+XO-1,XO-1 b,3.94153,38,1546.5591749297455,ExoArchive SOPHIE,3.941512241899987,False,True,outer_candidate,,,,,,,,,334.905712497878,37.2345595939192,5.7071559432082655,fitted significance 5.7 < 20,,new candidate (not in Archive)
+XO-2 N,XO-2 N b,2.61585906,52,5080.398270000238,ExoArchive Teklu,2.615838246873596,True,True,outer_candidate,,,,,,,,,75.99642373853656,14.47229613000186,6.585910839333872,fitted significance 6.6 < 20,,new candidate (not in Archive)
+XO-3,XO-3 b,3.19152309,135,2210.812736529857,ExoArchive SOPHIE SOPHIE+,3.191691568352486,False,True,outer_candidate,,,,,,,,,227.13012475855004,91.93385675820858,3.159142697171608,fitted significance 3.2 < 20,,new candidate (not in Archive)
+XO-5,XO-5 b,4.1877558,33,5002.031090000179,ExoArchive Teklu,4.187755608485294,False,True,none,,,,,,,,,,,,,,no outer signal
+tau Boo,tau Boo b,3.3124568,278,11721.892707999796,CLS ExoArchive SOPHIE,3.3124535211673285,False,True,trend,trend,,,,,,,,,,49.02968623673785,,,new trend (not in Archive)
+ups And,ups And b,4.617033,1700,11686.074941000436,CLS ExoArchive SOPHIE SOPHIE+,4.617113612659717,False,True,outer_planet,keplerian,240.68155831172044,0.08762801363401233,55.404528209141006,1.5439992565813725,0.42004928705814,multiple_cycles,1.5388237688985027,,,21.9620700537776,,ups And d (1276 d); ups And c (241.3 d),matches listed planet
+XO-4,XO-4 b,4.12508,25,1175.5731196897104,ExoArchive SOPHIE,4.123254511690563,False,True,outer_candidate,,,,,,,,,207.55258463889933,54.32355019972619,25.753793066714803,only 3 observing seasons,,new candidate (not in Archive)

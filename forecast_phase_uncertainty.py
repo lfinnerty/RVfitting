@@ -62,29 +62,15 @@ def observable_windows(ra_deg: float, dec_deg: float) -> list[tuple[float, float
 
 
 def saved_model(time, parameters, label):
-	"""Evaluate the saved adopted orbit, including the label's zero point."""
+	"""Evaluate the saved adopted orbit, outer signal, and the label's zero point."""
+	time = np.atleast_1d(time)
 	orbit = plot_rvs.saved_orbit(parameters)
 	offset = parameters["source_offsets_m_per_s"].get(label, 0.0)
-	return plot_rvs.orbit_rv(np.atleast_1d(time), orbit, np.empty((np.size(time), 0))) + offset
-
-
-def short_term_jitter(times, residuals, errors, season_days=60.0):
-	"""Robust within-season residual scatter, minus measurement errors in quadrature.
-
-	Subtracting each season's median residual removes long-period signals (such as
-	outer companions) that a single-planet orbit leaves in the residuals.
-	"""
-	season = np.floor((times - times.min()) / season_days)
-	centered = []
-	for value in np.unique(season):
-		in_season = season == value
-		if in_season.sum() >= 3:
-			centered.extend(residuals[in_season] - np.median(residuals[in_season]))
-	if len(centered) < 5:
-		centered = residuals - np.median(residuals)
-	centered = np.asarray(centered)
-	scatter = 1.4826 * np.median(np.abs(centered - np.median(centered)))
-	return float(np.sqrt(max(scatter**2 - np.median(errors) ** 2, 0.0)))
+	model = plot_rvs.orbit_rv(time, orbit, np.empty((len(time), 0))) + offset
+	outer, outer_parameters = plot_rvs.saved_outer_signal(parameters)
+	if outer is not None:
+		model = model + outer.evaluate(time, outer_parameters)
+	return model
 
 
 def analytic_phase_hours(parameters, new_times, new_sigma, free_offset):
@@ -140,7 +126,7 @@ def main() -> None:
 		hires_labels = [label for label in ("Teklu", "CLS HIRES-j") if np.any(labels == label)]
 		hires = np.isin(labels, hires_labels) & (bjd > HIRES_UPGRADE_BJD)
 		noise_mask = hires if hires.any() else np.ones(len(bjd), dtype=bool)
-		jitter = short_term_jitter(
+		jitter = plot_rvs.short_term_jitter(
 			bjd[noise_mask],
 			np.array([
 				rv[i] - saved_model(bjd[i], parameters, labels[i])[0]

@@ -11,3 +11,5 @@ RVdatabases/SOPHIE/
 RVdatabases/Synthetics/
 RVdatabases/simbad_cache.json
 *.part
+RVdatabases/exoplanet_archive_pscomppars_*.csv
+RVdatabases/NEID/

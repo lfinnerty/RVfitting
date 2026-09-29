@@ -13,3 +13,7 @@ RVdatabases/simbad_cache.json
 *.part
 RVdatabases/exoplanet_archive_pscomppars_*.csv
 RVdatabases/NEID/
+
+# Plots kept out of git
+plots/survey_candidates/
+plots/forecast_2027A_hires.png

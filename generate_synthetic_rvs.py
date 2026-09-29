@@ -36,8 +36,8 @@ def load_reference_observations(
 	system: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 	"""Load observations for noise estimates, preferring HIRES and HARPS."""
-	datasets = rv_io.load_datasets(system, ("Teklu", "HARPS")) or rv_io.load_datasets(
-		system, ("ExoArchive", "Fulton", "Hebrard")
+	datasets = rv_io.load_datasets(system, ("Teklu", "HARPS", "HARPS2020")) or rv_io.load_datasets(
+		system, ("ExoArchive", "CLS", "SOPHIE", "Hebrard")
 	)
 	if not datasets:
 		raise ValueError(f"No RV observations found for {system!r}")

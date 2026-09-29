@@ -2,8 +2,7 @@
 """List the stellar systems in the local RV databases.
 
 By default, print unique systems using SIMBAD default identifiers. With
-``--file-lists``, instead write host-star-to-filename tables for the ExoArchive
-and Fulton databases.
+``--file-lists``, instead write the ExoArchive host-star-to-filename table.
 """
 
 import argparse
@@ -49,16 +48,13 @@ def main() -> None:
 	parser.add_argument(
 		"--file-lists",
 		action="store_true",
-		help="Write exoarchive_hosts.txt and rv_data_fulton_hosts.txt instead.",
+		help="Write RVdatabases/exoarchive_hosts.txt instead.",
 	)
 	args = parser.parse_args()
 
 	if args.file_lists:
 		write_mapping(
 			rv_io.DATABASE_ROOT / "exoarchive_hosts.txt", rv_io.exoarchive_hosts()
-		)
-		write_mapping(
-			rv_io.DATABASE_ROOT / "rv_data_fulton_hosts.txt", rv_io.fulton_hosts()
 		)
 		return
 

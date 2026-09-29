@@ -1,6 +1,7 @@
 {
   "input_star": "HD12484",
   "source": "hebrard",
+  "includes_synthetics": false,
   "measurement_count": 65,
   "orbit_fit_excluded_count": 0,
   "periodogram_peak_period_days": 2.2780663632031217,

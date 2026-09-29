@@ -16,15 +16,8 @@ import rv_io
 
 
 PLOTS_DIRECTORY = Path(__file__).resolve().parent / "plots"
-SOURCE_COLORS = {
-	"Teklu": "tab:blue",
-	"ExoArchive": "tab:orange",
-	"Fulton": "tab:green",
-	"Hebrard": "tab:red",
-	"HARPS": "tab:purple",
-	"Synthetic": "tab:brown",
-}
-OBSERVED_SOURCES = ("Teklu", "ExoArchive", "Fulton", "Hebrard", "HARPS")
+SYNTHETIC_SUFFIX = "_with_synthetics"
+OBSERVED_SOURCES = ("Teklu", "ExoArchive", "CLS", "HARPS", "HARPS2020", "SOPHIE", "Hebrard")
 PERIOD_RANGE = (1.2, np.nextafter(8.0, 1.2))  # days
 FALSE_ALARM_PROBABILITY = 0.001
 TARGET_DATE = "2027-07-01"
@@ -364,8 +357,8 @@ def _to_json(value):
 def _errorbar_by_source(
 	axis, x, y, yerr, source_labels, mask=None, label_suffix="", **style
 ) -> None:
-	"""Draw one colored errorbar series per RV source."""
-	for source, color in SOURCE_COLORS.items():
+	"""Draw one colored errorbar series per RV offset group."""
+	for index, source in enumerate(sorted(set(source_labels))):
 		source_mask = source_labels == source
 		if mask is not None:
 			source_mask &= mask
@@ -376,7 +369,7 @@ def _errorbar_by_source(
 				yerr=yerr[source_mask],
 				fmt="o",
 				capsize=2,
-				color=color,
+				color=f"C{index % 10}",
 				label=f"{source}{label_suffix}",
 				**style,
 			)
@@ -520,7 +513,10 @@ def main() -> None:
 	parser.add_argument(
 		"--synthetics",
 		action="store_true",
-		help="Also load matching synthetic RV points from RVdatabases/Synthetics/.",
+		help=(
+			"Also load matching synthetic RV points from RVdatabases/Synthetics/;"
+			f" outputs from fits that include them get a {SYNTHETIC_SUFFIX!r} suffix."
+		),
 	)
 	args = parser.parse_args()
 
@@ -531,7 +527,7 @@ def main() -> None:
 		sources.append("Synthetic")
 
 	datasets = rv_io.load_datasets(args.star, sources, args.database)
-	raw_measurement_count = sum(len(data[0]) for _, data in datasets)
+	raw_measurement_count = sum(len(data.time) for data in datasets)
 	try:
 		bjd, rv, rv_error, source_labels = rv_io.combine_rv_data(datasets)
 	except ValueError as error:
@@ -543,13 +539,22 @@ def main() -> None:
 
 	fit = fit_system(bjd, rv, rv_error, source_labels)
 	print_fit_summary(args.star, fit.parameters)
-	fit_parameters = {"input_star": args.star, "source": args.source, **fit.parameters}
+	includes_synthetics = bool(np.any(source_labels == "Synthetic"))
+	fit_parameters = {
+		"input_star": args.star,
+		"source": args.source,
+		"includes_synthetics": includes_synthetics,
+		**fit.parameters,
+	}
 
 	figure = plot_fit(args.star, bjd, rv, rv_error, source_labels, fit)
 	PLOTS_DIRECTORY.mkdir(exist_ok=True)
-	output_path = PLOTS_DIRECTORY / f"{args.star}_rv_fit_plot.png"
+	# Tag synthetic-inclusive fits so they never overwrite real-data fits, which
+	# generate_synthetic_rvs reads back by star name.
+	output_stem = f"{args.star}{SYNTHETIC_SUFFIX if includes_synthetics else ''}"
+	output_path = PLOTS_DIRECTORY / f"{output_stem}_rv_fit_plot.png"
 	figure.savefig(str(output_path), dpi=150)
-	json_path = PLOTS_DIRECTORY / f"{args.star}_rv_fit_parameters.json"
+	json_path = PLOTS_DIRECTORY / f"{output_stem}_rv_fit_parameters.json"
 	json_path.write_text(json.dumps(fit_parameters, indent=2) + "\n", encoding="utf-8")
 	print(f"Saved plot to {output_path}")
 	print(f"Saved fit parameters to {json_path}")

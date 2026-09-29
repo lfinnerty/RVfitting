@@ -1,6 +1,7 @@
 {
   "input_star": "HD102956",
   "source": "all",
+  "includes_synthetics": false,
   "measurement_count": 36,
   "orbit_fit_excluded_count": 0,
   "periodogram_peak_period_days": 6.494108710517968,

@@ -18,8 +18,11 @@ import rv_io
 
 PLOTS_DIRECTORY = Path(__file__).resolve().parent / "plots"
 SYNTHETIC_SUFFIX = "_with_synthetics"
-OBSERVED_SOURCES = ("Teklu", "ExoArchive", "CLS", "HARPS", "HARPS2020", "SOPHIE", "Hebrard", "NEID")
+OBSERVED_SOURCES = ("Teklu", "ExoArchive", "CLS", "HARPS", "HARPS2020", "SOPHIE", "Hebrard", "NEID", "ESPRESSO", "NeveuVanMalle")
 PERIOD_RANGE = (1.2, np.nextafter(8.0, 1.2))  # days
+# Fractional window around the periodogram peak rescanned with instrument offsets
+# (covers the cycle-count aliases of gaps longer than ~200 orbits).
+ALIAS_SCAN_WINDOW = 0.005
 FALSE_ALARM_PROBABILITY = 0.001
 TARGET_DATE = "2027-07-01"
 TARGET_BJD = 2_461_587.5  # 2027-07-01 00:00 UTC
@@ -71,6 +74,28 @@ def calculate_periodogram(
 		method="baluev",
 	)
 	return periods, power, periods[np.argmax(power)], float(threshold)
+
+
+def refine_period_with_offsets(
+	bjd: np.ndarray, rv: np.ndarray, rv_error: np.ndarray, offset_design: np.ndarray, period: float
+) -> float:
+	"""Return the best circular-orbit period near ``period`` with source offsets fitted.
+
+	The Lomb-Scargle periodogram fits one mean, so a small dataset whose own median
+	is a poor zero point (e.g. a few points on one side of the orbit) can move its
+	peak to a neighbouring cycle-count alias across a long gap. Rescanning at a
+	step of 1/10 of the finest alias spacing (P^2 / baseline) with the offsets as
+	free linear terms picks the right one.
+	"""
+	step = 0.1 * period**2 / np.ptp(bjd)
+	periods = np.arange(period * (1 - ALIAS_SCAN_WINDOW), period * (1 + ALIAS_SCAN_WINDOW), step)
+	weights = 1 / rv_error
+	chi_squared = []
+	for trial in periods:
+		design = sinusoid_design((bjd - bjd[0]) / trial, offset_design) * weights[:, None]
+		coefficients, *_ = np.linalg.lstsq(design, rv * weights, rcond=None)
+		chi_squared.append(np.sum((rv * weights - design @ coefficients) ** 2))
+	return float(periods[np.argmin(chi_squared)])
 
 
 def source_offset_design(source_labels: np.ndarray) -> tuple[np.ndarray, list[str]]:
@@ -1037,7 +1062,8 @@ def fit_system(
 		bjd, rv, rv_error
 	)
 	# A known period (e.g. from transits) avoids periodogram aliases in sparse data.
-	period, _ = fit_period(bjd, rv, rv_error, initial_period or peak_period, offset_design)
+	start = initial_period or refine_period_with_offsets(bjd, rv, rv_error, offset_design, peak_period)
+	period, _ = fit_period(bjd, rv, rv_error, start, offset_design)
 	mask = exclude_orbit_fit_outliers(((bjd - bjd[0]) / period) % 1.0, rv, rv_error, offset_design)
 	coefficients, covariance = fit_phase_curve(
 		((bjd[mask] - bjd[0]) / period) % 1.0, rv[mask], rv_error[mask], offset_design[mask]

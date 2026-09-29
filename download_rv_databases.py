@@ -19,7 +19,9 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import numpy as np
 import requests
+from astropy.io import fits
 
 import rv_io
 
@@ -39,12 +41,21 @@ VIZIER_CATALOGS = {
 		{"ReadMe": "ReadMe", "table2.dat": "table2.dat", "table6.dat.gz": "table6.dat.gz"},
 	),
 	"Hebrard2016": ("J/A+A/588/A145", {"Readme": "ReadMe", "rvdata.dat": "table1.dat"}),
+	"Neveu-VanMalle2014": (
+		"J/A+A/572/A49",
+		{"ReadMe": "ReadMe", "w94a_rv.dat": "w94a_rv.dat", "w94b_rv.dat": "w94b_rv.dat"},
+	),
 }
 # The NASA Exoplanet Archive bulk-download script (tracked in git) lists every table.
 EXOARCHIVE_WGET_SCRIPT = rv_io.EXOARCHIVE_DATABASE / "wget_exoarchive_20260924.bat"
 NEID_TAP = "https://neid.ipac.caltech.edu/TAP/sync"
 NEID_SEARCH_RADIUS_DEG = 60 / 3600  # headers record requested coordinates; allow proper motion
 NEID_COLUMNS = "qobject, obsdate, obstype, obsmode, swversion, ccfjdsum, ccfrvmod, dvrms, l2filename, l2propint, program"
+ESO_TAP = "https://archive.eso.org/tap_obs/sync"
+ESO_DATALINK = "https://archive.eso.org/datalink/links"
+ESO_SEARCH_HALF_BOX_DEG = 5 / 3600  # pointings are at the target; stays clear of 15" binary companions
+ESPRESSO_CCF_DIRECTORY = rv_io.ESPRESSO_DATABASE.parent / "ccf"
+ESPRESSO_COLUMNS = ["target", "dp_id", "file", "bjd", "rv_km_s", "rv_error_km_s", "mask", "mode", "pipeline", "program"]
 SOPHIE_URL = "http://atlas.obs-hp.fr/sophie/sophie.cgi"
 SOPHIE_FIELDS = "seq,objname,bjd,mask,ccf_offline,rv,err"
 # The SOPHIE server drops connections after ~2 minutes, so query small RA bins.
@@ -229,11 +240,91 @@ def download_neid(targets: list[str] | None = None, refresh: bool = False) -> No
 	queried_path.write_text(json.dumps(queried, indent=1) + "\n")
 
 
+def _espresso_products(ra_deg: float, dec_deg: float) -> list[str]:
+	"""Public ESPRESSO spectrum product IDs pointed within the search box around a position."""
+	half_ra = ESO_SEARCH_HALF_BOX_DEG / np.cos(np.radians(dec_deg))
+	query = (
+		"SELECT dp_id FROM ivoa.ObsCore WHERE instrument_name = 'ESPRESSO' AND dataproduct_type = 'spectrum'"
+		f" AND s_ra BETWEEN {ra_deg - half_ra} AND {ra_deg + half_ra}"
+		f" AND s_dec BETWEEN {dec_deg - ESO_SEARCH_HALF_BOX_DEG} AND {dec_deg + ESO_SEARCH_HALF_BOX_DEG}"
+	)
+	response = requests.get(
+		ESO_TAP, params={"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "QUERY": query}, timeout=180
+	)
+	response.raise_for_status()
+	return [row["dp_id"] for row in csv.DictReader(io.StringIO(response.text))]
+
+
+def _espresso_ccf(dp_id: str) -> Path:
+	"""Download (once) the science-fibre CCF file associated with an ESPRESSO product."""
+	response = requests.get(ESO_DATALINK, params={"ID": f"ivo://eso.org/ID?{dp_id}"}, timeout=120)
+	response.raise_for_status()
+	for row in re.findall(r"<TR>(.*?)</TR>", response.text, re.S):
+		cells = [re.sub(r"<!\[CDATA\[|\]\]>", "", cell).strip() for cell in re.findall(r"<TD>(.*?)</TD>", row, re.S)]
+		# ESPRESSO_CCF_A_* (newer DRS) or ES_SCCA_* (older); not the telluric-corrected CCF
+		if len(cells) > 6 and re.match(r"(ESPRESSO_CCF_A_|ES_SCCA_)", cells[6]):
+			destination = ESPRESSO_CCF_DIRECTORY / cells[6]
+			download_file(cells[1], destination)
+			return destination
+	raise RuntimeError(f"No CCF file linked to {dp_id}")
+
+
+def download_espresso(targets: list[str] | None = None, refresh: bool = False) -> None:
+	"""Collect ESPRESSO DRS CCF RVs from the ESO archive for ``targets``.
+
+	Each public spectrum's CCF file (~0.3 MB) is cached in ESPRESSO/ccf/, and its
+	header RV, error, BJD, mask, and mode go into one CSV. Targets already queried
+	are skipped unless ``refresh``.
+	"""
+	targets = targets or fitted_targets()
+	path = rv_io.ESPRESSO_DATABASE
+	ESPRESSO_CCF_DIRECTORY.mkdir(parents=True, exist_ok=True)
+	existing = list(csv.DictReader(path.open())) if path.is_file() else []
+	queried_path = path.with_name("queried_targets.json")
+	queried = json.loads(queried_path.read_text()) if queried_path.is_file() else {}
+	pending = [t for t in targets if refresh or t not in queried]
+	print(f"ESPRESSO: {len(pending)} of {len(targets)} targets to query")
+	records = rv_io.simbad_records(pending)
+	rows = [row for row in existing if row["target"] not in pending]
+	for target in pending:
+		record = records.get(target)
+		if record is None:
+			print(f"  {target}: no SIMBAD position, skipped", file=sys.stderr)
+			continue
+		try:
+			found = []
+			for dp_id in _espresso_products(record["ra_deg"], record["dec_deg"]):
+				header = fits.getheader(_espresso_ccf(dp_id))
+				if "HIERARCH ESO QC CCF RV" not in header:
+					continue
+				found.append({
+					"target": target, "dp_id": dp_id, "file": header.get("ARCFILE", ""),
+					"bjd": header["HIERARCH ESO QC BJD"], "rv_km_s": header["HIERARCH ESO QC CCF RV"],
+					"rv_error_km_s": header["HIERARCH ESO QC CCF RV ERROR"],
+					"mask": header["HIERARCH ESO QC CCF MASK"], "mode": header["HIERARCH ESO INS MODE"],
+					"pipeline": header.get("HIERARCH ESO PRO REC1 PIPE ID", ""),
+					"program": header.get("HIERARCH ESO OBS PROG ID", ""),
+				})
+		except (requests.RequestException, RuntimeError, OSError) as error:
+			print(f"  {target}: failed ({error}); will retry next run", file=sys.stderr)
+			continue
+		rows.extend(found)
+		queried[target] = datetime.date.today().isoformat()
+		print(f"  {target}: {len(found)} ESPRESSO RVs")
+	if rows:
+		with path.open("w", newline="") as output:
+			writer = csv.DictWriter(output, fieldnames=ESPRESSO_COLUMNS)
+			writer.writeheader()
+			writer.writerows(rows)
+	queried_path.write_text(json.dumps(queried, indent=1) + "\n")
+
+
 SOURCES = {
 	"vizier": download_vizier,
 	"exoarchive": download_exoarchive,
 	"sophie": download_sophie,
 	"neid": download_neid,
+	"espresso": download_espresso,
 }
 
 

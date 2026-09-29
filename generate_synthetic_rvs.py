@@ -9,18 +9,18 @@ import numpy as np
 from astropy.time import Time
 
 import rv_io
-from plot_rvs import PLOTS_DIRECTORY
+import plot_rvs
 
 
 def find_parameters(system: str) -> tuple[Path, dict]:
 	"""Find and load the saved fit parameters for a system."""
 	target = rv_io.normalize_identifier(system)
-	for path in PLOTS_DIRECTORY.glob("*_rv_fit_parameters.json"):
+	for path in plot_rvs.PLOTS_DIRECTORY.glob("*_rv_fit_parameters.json"):
 		saved_name = path.name.removesuffix("_rv_fit_parameters.json")
 		if rv_io.normalize_identifier(saved_name) == target:
 			return path, json.loads(path.read_text(encoding="utf-8"))
 	raise FileNotFoundError(
-		f"No saved fit parameters found for {system!r} in {PLOTS_DIRECTORY}"
+		f"No saved fit parameters found for {system!r} in {plot_rvs.PLOTS_DIRECTORY}"
 	)
 
 
@@ -53,23 +53,23 @@ def draw_synthetic_points(
 	reference_sources: np.ndarray,
 	rng: np.random.Generator,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, float]]:
-	"""Draw fit parameters and synthetic RVs using empirical source noise."""
-	period = rng.normal(
-		parameters["period_days"], parameters["period_uncertainty_days"]
-	)
-	semiamplitude = max(
-		0.0,
-		rng.normal(
-			parameters["sinusoidal_semiamplitude_m_per_s"],
-			parameters["sinusoidal_semiamplitude_uncertainty_m_per_s"],
-		),
-	)
+	"""Draw fit parameters and synthetic RVs using empirical source noise.
+
+	The period, semiamplitude, and conjunction are drawn from their uncertainties;
+	the eccentricity and argument of periastron are held at the adopted values.
+	"""
+	period = rng.normal(parameters["period_days"], parameters["period_uncertainty_days"])
+	semiamplitude = max(0.0, rng.normal(
+		parameters["semiamplitude_m_per_s"], parameters["semiamplitude_uncertainty_m_per_s"]
+	))
 	conjunction = rng.normal(
 		parameters["conjunction_bjd"], parameters["conjunction_uncertainty_days"]
 	)
+	orbit = plot_rvs.saved_orbit(parameters, period, semiamplitude, conjunction)
+	orbit[plot_rvs.ORBIT_GAMMA] = 0.0
 
 	def model(times: np.ndarray) -> np.ndarray:
-		return -semiamplitude * np.sin(2 * np.pi * (times - conjunction) / period)
+		return plot_rvs.orbit_rv(times, orbit, np.empty((len(times), 0)))
 
 	reference_model = model(reference_times)
 	for source, offset in parameters.get("source_offsets_m_per_s", {}).items():

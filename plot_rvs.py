@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
 from astropy.timeseries import LombScargle
-from scipy.optimize import least_squares
+from scipy.optimize import brentq, least_squares
 
 import rv_io
 
@@ -22,6 +22,13 @@ PERIOD_RANGE = (1.2, np.nextafter(8.0, 1.2))  # days
 FALSE_ALARM_PROBABILITY = 0.001
 TARGET_DATE = "2027-07-01"
 TARGET_BJD = 2_461_587.5  # 2027-07-01 00:00 UTC
+# Orbit parameter layout used by orbit_rv; source offsets follow.
+ORBIT_GAMMA, ORBIT_SEMIAMPLITUDE, ORBIT_PERIOD, ORBIT_CONJUNCTION, ORBIT_H, ORBIT_K = range(6)
+ORBIT_OFFSETS = 6
+MAX_ECCENTRICITY = 0.95
+ECCENTRICITY_SIGNIFICANCE = 2.45  # Lucy & Sweeney (1971) 5% false-alarm level
+JITTER_ITERATIONS = 8
+MIN_JITTER_POINTS = 8  # smaller offset groups take the median jitter of the others
 
 
 def calculate_periodogram(
@@ -121,70 +128,6 @@ def fit_period(
 	return fit.x[-1], np.sqrt(max(covariance[-1, -1], 0.0))
 
 
-def solve_kepler(mean_anomaly: np.ndarray, eccentricity: float) -> np.ndarray:
-	"""Solve Kepler's equation for eccentric anomaly."""
-	eccentric_anomaly = mean_anomaly.copy()
-	for _ in range(20):
-		eccentric_anomaly -= (
-			eccentric_anomaly - eccentricity * np.sin(eccentric_anomaly) - mean_anomaly
-		) / (1 - eccentricity * np.cos(eccentric_anomaly))
-	return eccentric_anomaly
-
-
-def calculate_keplerian_rv(
-	phase: np.ndarray, parameters: np.ndarray, offset_design: np.ndarray
-) -> np.ndarray:
-	"""Evaluate the Keplerian RV model at the supplied orbital phases."""
-	gamma, semiamplitude, eccentricity, omega, periapsis_phase = parameters[:5]
-	mean_anomaly = 2 * np.pi * (phase - periapsis_phase)
-	eccentric_anomaly = solve_kepler(mean_anomaly, eccentricity)
-	true_anomaly = 2 * np.arctan2(
-		np.sqrt(1 + eccentricity) * np.sin(eccentric_anomaly / 2),
-		np.sqrt(1 - eccentricity) * np.cos(eccentric_anomaly / 2),
-	)
-	model = gamma + semiamplitude * (
-		np.cos(true_anomaly + omega) + eccentricity * np.cos(omega)
-	)
-	return model + offset_design @ parameters[5:]
-
-
-def fit_keplerian(
-	phase: np.ndarray,
-	rv: np.ndarray,
-	rv_error: np.ndarray,
-	offset_design: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, float]:
-	"""Fit a Keplerian RV model; return parameters, covariance, and reduced chi2."""
-	circular, _ = fit_phase_curve(phase, rv, rv_error, offset_design)
-	initial_parameters = np.concatenate([
-		[
-			circular[0],
-			np.hypot(circular[1], circular[2]),
-			0.05,
-			0.0,
-			(np.arctan2(circular[1], circular[2]) / (2 * np.pi)) % 1.0,
-		],
-		circular[3:],
-	])
-
-	def residuals(parameters: np.ndarray) -> np.ndarray:
-		return (rv - calculate_keplerian_rv(phase, parameters, offset_design)) / rv_error
-
-	offset_count = offset_design.shape[1]
-	fit = least_squares(
-		residuals,
-		initial_parameters,
-		bounds=(
-			[-np.inf, 0.0, 0.0, -np.pi, 0.0] + [-np.inf] * offset_count,
-			[np.inf, np.inf, 0.95, np.pi, 1.0] + [np.inf] * offset_count,
-		),
-		x_scale="jac",
-		max_nfev=2_000,
-	)
-	covariance, reduced_chi_squared = _fit_covariance(fit)
-	return fit.x, covariance, reduced_chi_squared
-
-
 def sinusoid_parameters(
 	coefficients: np.ndarray,
 	covariance: np.ndarray,
@@ -211,21 +154,241 @@ def sinusoid_parameters(
 	return semiamplitude, semiamplitude_uncertainty, conjunction_bjd, conjunction_uncertainty
 
 
-def calculate_phase_at_date(
-	target_bjd: float,
-	conjunction_bjd: float,
-	conjunction_uncertainty: float,
-	period: float,
-	period_uncertainty: float,
-) -> tuple[float, float]:
-	"""Return orbital phase and propagated uncertainty at a target BJD."""
-	elapsed_time = target_bjd - conjunction_bjd
-	phase = (elapsed_time / period) % 1.0
-	phase_uncertainty = np.sqrt(
-		(conjunction_uncertainty / period) ** 2
-		+ (elapsed_time * period_uncertainty / period**2) ** 2
+def solve_kepler(mean_anomaly: np.ndarray, eccentricity: float) -> np.ndarray:
+	"""Solve Kepler's equation for the eccentric anomaly (Newton, Danby start)."""
+	mean_anomaly = np.mod(mean_anomaly, 2 * np.pi)
+	eccentric_anomaly = mean_anomaly + 0.85 * eccentricity * np.sign(np.sin(mean_anomaly))
+	for _ in range(30):
+		eccentric_anomaly -= (
+			eccentric_anomaly - eccentricity * np.sin(eccentric_anomaly) - mean_anomaly
+		) / (1 - eccentricity * np.cos(eccentric_anomaly))
+	return eccentric_anomaly
+
+
+def eccentricity_and_omega(parameters: np.ndarray) -> tuple[float, float]:
+	"""Return (e, omega) from the sqrt(e)cos(omega), sqrt(e)sin(omega) parameters."""
+	h, k = parameters[ORBIT_H], parameters[ORBIT_K]
+	return min(h * h + k * k, MAX_ECCENTRICITY), float(np.arctan2(k, h))
+
+
+def periapsis_time(conjunction: float, period: float, eccentricity: float, omega: float) -> float:
+	"""Return the periastron time preceding a transit conjunction (f = pi/2 - omega)."""
+	true_anomaly = np.pi / 2 - omega
+	eccentric_anomaly = 2 * np.arctan(
+		np.sqrt((1 - eccentricity) / (1 + eccentricity)) * np.tan(true_anomaly / 2)
 	)
-	return phase, phase_uncertainty
+	mean_anomaly = eccentric_anomaly - eccentricity * np.sin(eccentric_anomaly)
+	return conjunction - mean_anomaly * period / (2 * np.pi)
+
+
+def orbit_rv(bjd: np.ndarray, parameters: np.ndarray, offset_design: np.ndarray) -> np.ndarray:
+	"""Evaluate the Keplerian RV model; e = 0 gives -K sin(2 pi (t - Tc) / P).
+
+	``parameters`` are [gamma, K, P, Tc, sqrt(e)cos(omega), sqrt(e)sin(omega),
+	source offsets...], where Tc is the transit conjunction (f + omega = pi/2).
+	"""
+	gamma, semiamplitude, period, conjunction = parameters[:4]
+	eccentricity, omega = eccentricity_and_omega(parameters)
+	mean_anomaly = 2 * np.pi * (bjd - periapsis_time(conjunction, period, eccentricity, omega)) / period
+	eccentric_anomaly = solve_kepler(mean_anomaly, eccentricity)
+	true_anomaly = 2 * np.arctan2(
+		np.sqrt(1 + eccentricity) * np.sin(eccentric_anomaly / 2),
+		np.sqrt(1 - eccentricity) * np.cos(eccentric_anomaly / 2),
+	)
+	model = gamma + semiamplitude * (np.cos(true_anomaly + omega) + eccentricity * np.cos(omega))
+	return model + offset_design @ parameters[ORBIT_OFFSETS:]
+
+
+def saved_orbit(
+	parameters: dict,
+	period: float | None = None,
+	semiamplitude: float | None = None,
+	conjunction: float | None = None,
+) -> np.ndarray:
+	"""Return orbit_rv parameters (no offsets) for a saved fit's adopted orbit.
+
+	``period``, ``semiamplitude`` and ``conjunction`` override the saved values.
+	"""
+	eccentricity = parameters["eccentricity"] or 0.0
+	omega = np.radians(parameters["omega_degrees"] or 0.0)
+	return np.array([
+		parameters["gamma_m_per_s"],
+		parameters["semiamplitude_m_per_s"] if semiamplitude is None else semiamplitude,
+		parameters["period_days"] if period is None else period,
+		parameters["conjunction_bjd"] if conjunction is None else conjunction,
+		np.sqrt(eccentricity) * np.cos(omega),
+		np.sqrt(eccentricity) * np.sin(omega),
+	])
+
+
+def estimate_jitter(
+	residuals: np.ndarray, rv_error: np.ndarray, source_labels: np.ndarray
+) -> dict[str, float]:
+	"""Per-label jitter s with mean(r^2 / (err^2 + s^2)) = 1 (0 if already <= 1).
+
+	Labels with fewer than ``MIN_JITTER_POINTS`` points take the median of the others.
+	"""
+	jitter = {}
+	for label in dict.fromkeys(source_labels):
+		in_label = source_labels == label
+		if in_label.sum() < MIN_JITTER_POINTS:
+			continue
+		r2, e2 = residuals[in_label] ** 2, rv_error[in_label] ** 2
+		excess = lambda s: np.mean(r2 / (e2 + s * s)) - 1
+		jitter[label] = 0.0 if excess(0.0) <= 0 else brentq(excess, 0.0, np.sqrt(r2.max()) + 1)
+	fallback = float(np.median(list(jitter.values()))) if jitter else 0.0
+	return {label: jitter.get(label, fallback) for label in dict.fromkeys(source_labels)}
+
+
+def fit_orbit(
+	bjd: np.ndarray,
+	rv: np.ndarray,
+	rv_error: np.ndarray,
+	source_labels: np.ndarray,
+	offset_design: np.ndarray,
+	initial: np.ndarray,
+	eccentric: bool,
+) -> tuple[np.ndarray, np.ndarray, dict[str, float], float]:
+	"""Fit the orbit with per-label jitter, iterating jitter and fit to convergence.
+
+	Returns parameters, their covariance (fixed parameters have zero variance),
+	the jitter by label, and the reduced chi-squared including jitter.
+	"""
+	# Fit times relative to the initial conjunction so finite-difference steps on
+	# Tc are small; the model depends only on t - Tc.
+	epoch = initial[ORBIT_CONJUNCTION]
+	bjd = bjd - epoch
+	initial = initial.copy()
+	initial[ORBIT_CONJUNCTION] = 0.0
+	free = np.ones(len(initial), dtype=bool)
+	if not eccentric:
+		free[[ORBIT_H, ORBIT_K]] = False
+	root_max_e = np.sqrt(MAX_ECCENTRICITY)
+	lower = np.array([-np.inf, 0.0, PERIOD_RANGE[0], -np.inf, -root_max_e, -root_max_e]
+		+ [-np.inf] * offset_design.shape[1])
+	upper = np.array([np.inf, np.inf, PERIOD_RANGE[1], np.inf, root_max_e, root_max_e]
+		+ [np.inf] * offset_design.shape[1])
+	starts = [initial]
+	if eccentric:  # a few periastron orientations at e = 0.09 avoid local minima
+		starts = [
+			np.concatenate([initial[:ORBIT_H], [0.3 * np.cos(angle), 0.3 * np.sin(angle)], initial[ORBIT_OFFSETS:]])
+			for angle in np.radians([45, 135, 225, 315])
+		]
+	jitter = {label: 0.0 for label in dict.fromkeys(source_labels)}
+	parameters = starts[0]
+	for iteration in range(JITTER_ITERATIONS):
+		sigma = np.hypot(rv_error, np.array([jitter[label] for label in source_labels]))
+
+		def residuals(x: np.ndarray) -> np.ndarray:
+			full = parameters_template.copy()
+			full[free] = x
+			return (rv - orbit_rv(bjd, full, offset_design)) / sigma
+
+		best = None
+		for start in (starts if iteration == 0 else [parameters]):
+			parameters_template = start.copy()
+			fit = least_squares(
+				residuals, np.clip(start[free], lower[free], upper[free]),
+				bounds=(lower[free], upper[free]), x_scale="jac", max_nfev=5_000,
+			)
+			if best is None or fit.cost < best[0].cost:
+				best = (fit, start.copy())
+		fit, parameters_template = best
+		parameters = parameters_template.copy()
+		parameters[free] = fit.x
+		new_jitter = estimate_jitter(
+			rv - orbit_rv(bjd, parameters, offset_design), rv_error, source_labels
+		)
+		converged = all(abs(new_jitter[l] - jitter[l]) < 0.01 * (jitter[l] + 0.1) for l in jitter)
+		jitter = new_jitter
+		if converged:
+			break
+	sigma = np.hypot(rv_error, np.array([jitter[label] for label in source_labels]))
+	parameters_template = parameters.copy()
+	final_residuals = residuals(parameters[free])
+	jacobian = _central_jacobian(residuals, parameters[free])
+	reduced_chi_squared = np.sum(final_residuals**2) / (len(rv) - free.sum())
+	covariance = np.zeros((len(parameters), len(parameters)))
+	covariance[np.ix_(free, free)] = reduced_chi_squared * np.linalg.pinv(jacobian.T @ jacobian)
+	parameters[ORBIT_CONJUNCTION] += epoch
+	return parameters, covariance, jitter, reduced_chi_squared
+
+
+def _central_jacobian(function, x: np.ndarray) -> np.ndarray:
+	"""Central-difference Jacobian of a vector function at ``x``."""
+	columns = []
+	for index in range(len(x)):
+		step = 1e-6 * max(abs(x[index]), 1e-3)
+		up, down = x.copy(), x.copy()
+		up[index] += step
+		down[index] -= step
+		columns.append((function(up) - function(down)) / (2 * step))
+	return np.column_stack(columns)
+
+
+def _propagate(function, parameters: np.ndarray, covariance: np.ndarray) -> tuple[float, float]:
+	"""Return f(parameters) and its linearly propagated 1-sigma uncertainty."""
+	value = function(parameters)
+	gradient = np.zeros(len(parameters))
+	for index in np.flatnonzero(np.diag(covariance) > 0):
+		step = 1e-6 * max(abs(parameters[index]), 1.0) if index != ORBIT_CONJUNCTION else 1e-6
+		shifted = parameters.copy()
+		shifted[index] += step
+		gradient[index] = (function(shifted) - value) / step
+	return value, float(np.sqrt(max(gradient @ covariance @ gradient, 0.0)))
+
+
+def summarize_orbit(
+	parameters: np.ndarray, covariance: np.ndarray, pivot_bjd: float
+) -> tuple[np.ndarray, np.ndarray, dict]:
+	"""Move Tc to the cycle nearest ``pivot_bjd`` and derive reported quantities.
+
+	Shifting Tc by whole periods is an exact reparametrization, so the covariance is
+	transformed rather than refitted. The target-date phase uses the full Tc-P covariance.
+	"""
+	period = parameters[ORBIT_PERIOD]
+	cycles = np.round((pivot_bjd - parameters[ORBIT_CONJUNCTION]) / period)
+	transform = np.eye(len(parameters))
+	transform[ORBIT_CONJUNCTION, ORBIT_PERIOD] = cycles
+	parameters = transform @ parameters
+	covariance = transform @ covariance @ transform.T
+
+	def target_phase(p):
+		return (TARGET_BJD - p[ORBIT_CONJUNCTION]) / p[ORBIT_PERIOD]
+
+	phase, phase_uncertainty = _propagate(target_phase, parameters, covariance)
+	eccentricity, e_uncertainty = _propagate(lambda p: eccentricity_and_omega(p)[0], parameters, covariance)
+	_, omega = eccentricity_and_omega(parameters)
+	eccentric = e_uncertainty > 0
+	if eccentric:
+		# Wrap-safe omega uncertainty: propagate the angle relative to its best value.
+		_, omega_uncertainty = _propagate(
+			lambda p: (eccentricity_and_omega(p)[1] - omega + np.pi) % (2 * np.pi) - np.pi,
+			parameters, covariance,
+		)
+		periapsis, periapsis_uncertainty = _propagate(
+			lambda p: periapsis_time(p[ORBIT_CONJUNCTION], p[ORBIT_PERIOD], *eccentricity_and_omega(p)),
+			parameters, covariance,
+		)
+	summary = {
+		"period_days": period,
+		"period_uncertainty_days": np.sqrt(covariance[ORBIT_PERIOD, ORBIT_PERIOD]),
+		"conjunction_bjd": parameters[ORBIT_CONJUNCTION],
+		"conjunction_uncertainty_days": np.sqrt(covariance[ORBIT_CONJUNCTION, ORBIT_CONJUNCTION]),
+		"semiamplitude_m_per_s": parameters[ORBIT_SEMIAMPLITUDE],
+		"semiamplitude_uncertainty_m_per_s": np.sqrt(covariance[ORBIT_SEMIAMPLITUDE, ORBIT_SEMIAMPLITUDE]),
+		"gamma_m_per_s": parameters[ORBIT_GAMMA],
+		"eccentricity": eccentricity,
+		"eccentricity_uncertainty": e_uncertainty if eccentric else np.nan,
+		"omega_degrees": np.degrees(omega) if eccentric else np.nan,
+		"omega_uncertainty_degrees": np.degrees(omega_uncertainty) if eccentric else np.nan,
+		"periapsis_bjd": periapsis if eccentric else np.nan,
+		"periapsis_uncertainty_days": periapsis_uncertainty if eccentric else np.nan,
+		f"phase_on_{TARGET_DATE}": phase % 1.0,
+		f"phase_uncertainty_on_{TARGET_DATE}": phase_uncertainty,
+		f"phase_uncertainty_hours_on_{TARGET_DATE}": phase_uncertainty * period * 24,
+	}
+	return parameters, covariance, summary
 
 
 def exclude_orbit_fit_outliers(
@@ -259,51 +422,51 @@ class SystemFit:
 	parameters: dict
 	periods: np.ndarray
 	power: np.ndarray
-	phase: np.ndarray
+	orbit_parameters: np.ndarray  # adopted model, see orbit_rv
 	offset_corrected_rv: np.ndarray
 	orbit_fit_mask: np.ndarray
-	sinusoid_coefficients: np.ndarray
 
 
 def fit_system(
 	bjd: np.ndarray, rv: np.ndarray, rv_error: np.ndarray, source_labels: np.ndarray
 ) -> SystemFit:
-	"""Find the period and fit sinusoidal and Keplerian orbits to combined RVs.
+	"""Find the period and fit circular and eccentric orbits with per-label jitter.
 
-	Orbital phases are measured from ``bjd[0]``. Offsets are defined once from all
-	source labels so masked fits keep the same offset columns.
+	A circular sinusoid (periodogram peak, then refined period) initializes both
+	fits and flags outliers. The period, K, transit conjunction, and offsets are then
+	fitted jointly, once with e = 0 and once with e free. The eccentric fit is
+	adopted only if e exceeds ``ECCENTRICITY_SIGNIFICANCE`` times its uncertainty
+	(Lucy & Sweeney 1971). Offsets are defined once from all source labels so
+	masked fits keep the same offset columns.
 	"""
 	offset_design, offset_sources = source_offset_design(source_labels)
 	periods, power, peak_period, false_alarm_threshold = calculate_periodogram(
 		bjd, rv, rv_error
 	)
-	period, period_uncertainty = fit_period(bjd, rv, rv_error, peak_period, offset_design)
-	phase = ((bjd - bjd[0]) / period) % 1.0
-
-	mask = exclude_orbit_fit_outliers(phase, rv, rv_error, offset_design)
+	period, _ = fit_period(bjd, rv, rv_error, peak_period, offset_design)
+	mask = exclude_orbit_fit_outliers(((bjd - bjd[0]) / period) % 1.0, rv, rv_error, offset_design)
 	coefficients, covariance = fit_phase_curve(
-		phase[mask], rv[mask], rv_error[mask], offset_design[mask]
+		((bjd[mask] - bjd[0]) / period) % 1.0, rv[mask], rv_error[mask], offset_design[mask]
 	)
-	semiamplitude, semiamplitude_uncertainty, conjunction_bjd, conjunction_uncertainty = (
-		sinusoid_parameters(coefficients, covariance, bjd[0], period)
-	)
-	target_phase, target_phase_uncertainty = calculate_phase_at_date(
-		TARGET_BJD, conjunction_bjd, conjunction_uncertainty, period, period_uncertainty
-	)
+	semiamplitude, _, conjunction, _ = sinusoid_parameters(coefficients, covariance, bjd[0], period)
+	initial = np.concatenate([[coefficients[0], semiamplitude, period, conjunction, 0.0, 0.0], coefficients[3:]])
 
-	keplerian, keplerian_covariance, reduced_chi_squared = fit_keplerian(
-		phase[mask], rv[mask], rv_error[mask], offset_design[mask]
-	)
-	eccentricity = keplerian[2]
-	eccentricity_uncertainty = np.sqrt(keplerian_covariance[2, 2])
-	omega_degrees = np.degrees(keplerian[3])
-	omega_uncertainty_degrees = np.degrees(np.sqrt(keplerian_covariance[3, 3]))
-	periapsis_bjd = bjd[0] + keplerian[4] * period
-	periapsis_uncertainty = period * np.sqrt(keplerian_covariance[4, 4])
-	if eccentricity < eccentricity_uncertainty:
-		eccentricity = 0.0
-		omega_degrees = omega_uncertainty_degrees = np.nan
-		periapsis_bjd = periapsis_uncertainty = np.nan
+	fits = {}
+	for model in ("circular", "keplerian"):
+		parameters, covariance, jitter, reduced_chi_squared = fit_orbit(
+			bjd[mask], rv[mask], rv_error[mask], source_labels[mask], offset_design[mask],
+			initial, eccentric=model == "keplerian",
+		)
+		sigma = np.hypot(rv_error[mask], [jitter[label] for label in source_labels[mask]])
+		pivot = np.average(bjd[mask], weights=sigma**-2)
+		parameters, covariance, summary = summarize_orbit(parameters, covariance, pivot)
+		summary["reduced_chi_squared"] = reduced_chi_squared
+		summary["jitter_m_per_s"] = jitter
+		fits[model] = (parameters, summary)
+	eccentric_summary = fits["keplerian"][1]
+	significance = eccentric_summary["eccentricity"] / eccentric_summary["eccentricity_uncertainty"]
+	adopted = "keplerian" if significance > ECCENTRICITY_SIGNIFICANCE else "circular"
+	adopted_parameters, adopted_summary = fits[adopted]
 
 	parameters = {
 		"measurement_count": len(bjd),
@@ -311,35 +474,21 @@ def fit_system(
 		"periodogram_peak_period_days": peak_period,
 		"periodogram_false_alarm_probability": FALSE_ALARM_PROBABILITY,
 		"periodogram_false_alarm_threshold": false_alarm_threshold,
-		"period_days": period,
-		"period_uncertainty_days": period_uncertainty,
-		"sinusoidal_gamma_m_per_s": coefficients[0],
-		"sinusoidal_semiamplitude_m_per_s": semiamplitude,
-		"sinusoidal_semiamplitude_uncertainty_m_per_s": semiamplitude_uncertainty,
-		"source_offsets_m_per_s": dict(zip(offset_sources, coefficients[3:])),
-		"conjunction_bjd": conjunction_bjd,
-		"conjunction_uncertainty_days": conjunction_uncertainty,
-		f"phase_on_{TARGET_DATE}": target_phase,
-		f"phase_uncertainty_on_{TARGET_DATE}": target_phase_uncertainty,
-		f"phase_uncertainty_hours_on_{TARGET_DATE}": target_phase_uncertainty * period * 24,
-		"keplerian_gamma_m_per_s": keplerian[0],
-		"keplerian_semiamplitude_m_per_s": keplerian[1],
-		"keplerian_eccentricity": eccentricity,
-		"keplerian_eccentricity_uncertainty": eccentricity_uncertainty,
-		"keplerian_omega_degrees": omega_degrees,
-		"keplerian_omega_uncertainty_degrees": omega_uncertainty_degrees,
-		"keplerian_periapsis_bjd": periapsis_bjd,
-		"keplerian_periapsis_uncertainty_days": periapsis_uncertainty,
-		"orbit_fit_reduced_chi_squared": reduced_chi_squared,
+		"orbit_model": adopted,
+		"eccentricity_significance": significance,
+		**adopted_summary,
+		"source_offsets_m_per_s": dict(zip(offset_sources, adopted_parameters[ORBIT_OFFSETS:])),
+		"circular_fit": {key: value for key, value in fits["circular"][1].items()
+			if not key.startswith(("eccentricity", "omega", "periapsis"))},
+		"keplerian_fit": fits["keplerian"][1],
 	}
 	return SystemFit(
 		parameters=_to_json(parameters),
 		periods=periods,
 		power=power,
-		phase=phase,
-		offset_corrected_rv=rv - offset_design @ coefficients[3:],
+		orbit_parameters=adopted_parameters,
+		offset_corrected_rv=rv - offset_design @ adopted_parameters[ORBIT_OFFSETS:],
 		orbit_fit_mask=mask,
-		sinusoid_coefficients=coefficients,
 	)
 
 
@@ -387,10 +536,15 @@ def plot_fit(
 	parameters = fit.parameters
 	period = parameters["period_days"]
 	period_label = f"{period:.6g} +/- {parameters['period_uncertainty_days']:.6g}"
-	semiamplitude = parameters["sinusoidal_semiamplitude_m_per_s"]
-	semiamplitude_uncertainty = parameters["sinusoidal_semiamplitude_uncertainty_m_per_s"]
+	semiamplitude = parameters["semiamplitude_m_per_s"]
+	semiamplitude_uncertainty = parameters["semiamplitude_uncertainty_m_per_s"]
+	conjunction = parameters["conjunction_bjd"]
+	model_label = (
+		f"Keplerian (e = {parameters['eccentricity']:.3f} +/- {parameters['eccentricity_uncertainty']:.3f})"
+		if parameters["orbit_model"] == "keplerian" else "Circular orbit"
+	)
 
-	figure, axes = plt.subplots(3, 1, sharex=False, figsize=(8, 10))
+	figure, axes = plt.subplots(3, 1, sharex=False, figsize=(8, 11))
 	_errorbar_by_source(axes[0], bjd - 2_450_000, rv, rv_error, source_labels)
 	axes[0].set_xlabel("BJD - 2450000")
 	axes[0].set_ylabel("Radial velocity (m/s)")
@@ -423,39 +577,36 @@ def plot_fit(
 	axes[1].grid(alpha=0.3)
 	axes[1].legend()
 
+	# Fold with the transit conjunction at phase 0.
+	phase = ((bjd - conjunction) / period + 0.25) % 1.0 - 0.25
 	mask = fit.orbit_fit_mask
 	_errorbar_by_source(
-		axes[2], fit.phase, fit.offset_corrected_rv, rv_error, source_labels, mask
+		axes[2], phase, fit.offset_corrected_rv, rv_error, source_labels, mask
 	)
 	_errorbar_by_source(
-		axes[2], fit.phase, fit.offset_corrected_rv, rv_error, source_labels, ~mask,
+		axes[2], phase, fit.offset_corrected_rv, rv_error, source_labels, ~mask,
 		label_suffix=" (excluded)", alpha=0.25,
 	)
-	fit_phase = np.linspace(0, 1, 500)
+	model_phase = np.linspace(-0.25, 0.75, 500)
+	orbit = fit.orbit_parameters[:ORBIT_OFFSETS]
 	axes[2].plot(
-		fit_phase,
-		sinusoid_design(fit_phase) @ fit.sinusoid_coefficients[:3],
-		color="tab:red",
-		label=(
-			f"Sinusoidal fit (K = {semiamplitude:.4g} +/- "
-			f"{semiamplitude_uncertainty:.3g} m/s)"
-		),
+		model_phase,
+		orbit_rv(conjunction + model_phase * period, orbit, np.empty((len(model_phase), 0))),
+		color="black",
+		linewidth=2,
+		zorder=5,
+		label=f"{model_label}, K = {semiamplitude:.4g} +/- {semiamplitude_uncertainty:.3g} m/s",
 	)
-	axes[2].axvline(
-		((parameters["conjunction_bjd"] - bjd[0]) / period) % 1.0,
-		color="tab:green",
-		linestyle="--",
-		label="Best-fit conjunction",
-	)
-	axes[2].set_xlabel("Orbital phase")
+	axes[2].axvline(0.0, color="tab:green", linestyle="--", label="Transit conjunction")
+	axes[2].set_xlabel("Orbital phase from transit conjunction")
 	axes[2].set_ylabel("Radial velocity (m/s)")
 	axes[2].set_title(
 		f"RV folded on {period_label}-day period; "
 		f"K = {semiamplitude:.6g} +/- {semiamplitude_uncertainty:.6g} m/s"
 	)
-	axes[2].set_xlim(0, 1)
+	axes[2].set_xlim(-0.25, 0.75)
 	axes[2].grid(alpha=0.3)
-	axes[2].legend()
+	axes[2].legend(fontsize="small", ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.15))
 	figure.tight_layout()
 	return figure
 
@@ -471,22 +622,25 @@ def print_fit_summary(star: str, parameters: dict) -> None:
 			f"{star}: excluding {parameters['orbit_fit_excluded_count']}"
 			" obvious outlier(s) from orbit fit"
 		)
+	jitter = ", ".join(f"{label} {value:.1f}" for label, value in parameters["jitter_m_per_s"].items())
 	lines = (
+		f"adopted {parameters['orbit_model']} orbit"
+		f" (e/sigma_e = {value('eccentricity_significance', '.2f')})",
 		f"best-fit period = {value('period_days')} +/- {value('period_uncertainty_days')} days",
-		f"best-fit RV semiamplitude = {value('sinusoidal_semiamplitude_m_per_s')}"
-		f" +/- {value('sinusoidal_semiamplitude_uncertainty_m_per_s')} m/s",
-		f"primary-transit conjunction = BJD {value('conjunction_bjd', '.6f')}"
+		f"RV semiamplitude = {value('semiamplitude_m_per_s')}"
+		f" +/- {value('semiamplitude_uncertainty_m_per_s')} m/s",
+		f"transit conjunction = BJD {value('conjunction_bjd', '.6f')}"
 		f" +/- {value('conjunction_uncertainty_days', '.6f')}",
 		f"orbital phase on {TARGET_DATE} = {value(f'phase_on_{TARGET_DATE}', '.6f')}"
 		f" +/- {value(f'phase_uncertainty_on_{TARGET_DATE}', '.6f')} cycles"
 		f" (+/- {value(f'phase_uncertainty_hours_on_{TARGET_DATE}', '.6f')} hours)",
-		f"eccentricity = {value('keplerian_eccentricity')}"
-		f" +/- {value('keplerian_eccentricity_uncertainty')}",
-		f"longitude of periastron = {value('keplerian_omega_degrees')}"
-		f" +/- {value('keplerian_omega_uncertainty_degrees')} degrees",
-		f"time of periapsis passage = BJD {value('keplerian_periapsis_bjd', '.6f')}"
-		f" +/- {value('keplerian_periapsis_uncertainty_days', '.6f')}",
-		f"orbit-fit reduced chi2 = {value('orbit_fit_reduced_chi_squared')}",
+		f"eccentricity = {value('eccentricity')} +/- {value('eccentricity_uncertainty')}",
+		f"argument of periastron = {value('omega_degrees')}"
+		f" +/- {value('omega_uncertainty_degrees')} degrees",
+		f"time of periastron = BJD {value('periapsis_bjd', '.6f')}"
+		f" +/- {value('periapsis_uncertainty_days', '.6f')}",
+		f"jitter (m/s): {jitter}",
+		f"reduced chi2 (with jitter) = {value('reduced_chi_squared')}",
 	)
 	for line in lines:
 		print(f"{star}: {line}")

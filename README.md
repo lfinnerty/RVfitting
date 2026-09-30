@@ -240,6 +240,15 @@ python forecast_phase_uncertainty.py                          # targets in plots
 python forecast_phase_uncertainty.py --targets HD2638 HD143105 --counts 3 5 --realizations 10
 ```
 
+**Phase uncertainty on later dates:** each summary target's conjunction-time uncertainty,
+propagated from its saved fit with no new data. Writes `plots/phase_uncertainty_2027B.csv`
+(2027B start, middle and end by default):
+
+```bash
+python propagate_phase_uncertainty.py
+python propagate_phase_uncertainty.py --dates 2028-02-01 2028-05-01 2028-07-31 --output plots/phase_uncertainty_2028A.csv
+```
+
 **Hot-Jupiter outer-planet survey:** every Exoplanet Archive hot-Jupiter host with at least
 20 RVs over at least a year, compared with the Archive's listed planets. Writes
 `plots/hot_jupiter_outer_survey.csv`. It resumes if interrupted:

@@ -18,7 +18,7 @@ import rv_io
 
 PLOTS_DIRECTORY = Path(__file__).resolve().parent / "plots"
 SYNTHETIC_SUFFIX = "_with_synthetics"
-OBSERVED_SOURCES = ("Teklu", "ExoArchive", "CLS", "HARPS", "HARPS2020", "SOPHIE", "Hebrard", "NEID", "ESPRESSO", "NeveuVanMalle")
+OBSERVED_SOURCES = ("Teklu", "ExoArchive", "CLS", "HARPS", "HARPS2020", "SOPHIE", "Hebrard", "NEID", "ESPRESSO", "NeveuVanMalle", "Literature", "HARPSDRS", "ELODIE")
 PERIOD_RANGE = (1.2, np.nextafter(8.0, 1.2))  # days
 # Fractional window around the periodogram peak rescanned with instrument offsets
 # (covers the cycle-count aliases of gaps longer than ~200 orbits).
@@ -1487,6 +1487,35 @@ def print_fit_summary(star: str, parameters: dict) -> None:
 		print(f"{star}: {line}")
 
 
+def save_fit(
+	star: str,
+	source: str,
+	bjd: np.ndarray,
+	rv: np.ndarray,
+	rv_error: np.ndarray,
+	source_labels: np.ndarray,
+	fit: SystemFit,
+) -> tuple[Path, Path]:
+	"""Save the fit plot and parameter JSON to plots/; return (plot, JSON) paths."""
+	includes_synthetics = bool(np.any(source_labels == "Synthetic"))
+	fit_parameters = {
+		"input_star": star,
+		"source": source,
+		"includes_synthetics": includes_synthetics,
+		**fit.parameters,
+	}
+	figure = plot_fit(star, bjd, rv, rv_error, source_labels, fit)
+	PLOTS_DIRECTORY.mkdir(exist_ok=True)
+	# Tag synthetic-inclusive fits so they never overwrite real-data fits, which
+	# generate_synthetic_rvs reads back by star name.
+	output_stem = f"{star}{SYNTHETIC_SUFFIX if includes_synthetics else ''}"
+	plot_path = PLOTS_DIRECTORY / f"{output_stem}_rv_fit_plot.png"
+	figure.savefig(str(plot_path), dpi=150)
+	json_path = PLOTS_DIRECTORY / f"{output_stem}_rv_fit_parameters.json"
+	json_path.write_text(json.dumps(fit_parameters, indent=2) + "\n", encoding="utf-8")
+	return plot_path, json_path
+
+
 def main() -> None:
 	parser = argparse.ArgumentParser(
 		description="Plot combined radial velocities for a star and fit its orbit."
@@ -1541,25 +1570,8 @@ def main() -> None:
 
 	fit = fit_system(bjd, rv, rv_error, source_labels, args.outer_model)
 	print_fit_summary(args.star, fit.parameters)
-	includes_synthetics = bool(np.any(source_labels == "Synthetic"))
-	fit_parameters = {
-		"input_star": args.star,
-		"source": args.source,
-		"includes_synthetics": includes_synthetics,
-		**fit.parameters,
-	}
-
-	figure = plot_fit(args.star, bjd, rv, rv_error, source_labels, fit)
-	PLOTS_DIRECTORY.mkdir(exist_ok=True)
-	# Tag synthetic-inclusive fits so they never overwrite real-data fits, which
-	# generate_synthetic_rvs reads back by star name.
-	output_stem = f"{args.star}{SYNTHETIC_SUFFIX if includes_synthetics else ''}"
-	output_path = PLOTS_DIRECTORY / f"{output_stem}_rv_fit_plot.png"
-	figure.savefig(str(output_path), dpi=150)
-	json_path = PLOTS_DIRECTORY / f"{output_stem}_rv_fit_parameters.json"
-	json_path.write_text(json.dumps(fit_parameters, indent=2) + "\n", encoding="utf-8")
-	print(f"Saved plot to {output_path}")
-	print(f"Saved fit parameters to {json_path}")
+	for path in save_fit(args.star, args.source, bjd, rv, rv_error, source_labels, fit):
+		print(f"Saved {'plot' if path.suffix == '.png' else 'fit parameters'} to {path}")
 	plt.show()
 
 

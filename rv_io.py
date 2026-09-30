@@ -26,12 +26,16 @@ RVBANK2020_DATABASE = DATABASE_ROOT / "HARPS" / "rvbank.dat"
 SOPHIE_DATABASE = DATABASE_ROOT / "SOPHIE"
 NEID_DATABASE = DATABASE_ROOT / "NEID" / "neid_l2.csv"
 ESPRESSO_DATABASE = DATABASE_ROOT / "ESPRESSO" / "espresso_ccf.csv"
+HARPS_DRS_DATABASE = DATABASE_ROOT / "HARPS_DRS" / "harps_drs_ccf.csv"
+ELODIE_DATABASE = DATABASE_ROOT / "ELODIE" / "elodie_ccf.csv"
+LITERATURE_DATABASE = DATABASE_ROOT / "literature" / "literature_rvs.csv"
 HEBRARD_DATABASE = DATABASE_ROOT / "Hebrard2016" / "rvdata.dat"
 NEVEU_VANMALLE_DATABASE = DATABASE_ROOT / "Neveu-VanMalle2014"
 # One CORALIE file per star (both components of the WASP-94 binary).
 NEVEU_VANMALLE_FILES = {"w94a_rv.dat": "WASP-94A", "w94b_rv.dat": "WASP-94B"}
 SYNTHETICS_DATABASE = DATABASE_ROOT / "Synthetics"
 SIMBAD_CACHE = DATABASE_ROOT / "simbad_cache.json"
+ARCHIVE_TABLE = DATABASE_ROOT / "exoplanet_archive_pscomppars_20260929.csv"
 MINIMUM_BJD = 2_447_161.5  # 1988-01-01 00:00 UTC
 SIMBAD_BATCH_SIZE = 500
 
@@ -41,7 +45,7 @@ SIMBAD_BATCH_SIZE = 500
 # their observation year.
 ANALYSIS_YEAR = {
 	"Teklu": 2025, "NEID": 2024, "RVBank": 2024, "CLS": 2021, "RVBank2020": 2020, "Hebrard": 2016,
-	"NeveuVanMalle": 2014, "Synthetic": 9999,
+	"NeveuVanMalle": 2014, "Synthetic": 9999,  # Literature rows carry their own year
 }
 
 # Two same-instrument points from different datasets closer than this are one
@@ -58,6 +62,9 @@ ESPRESSO_FIBRE_LINK_BJD = 2_458_661.5  # 2019-06-27 fibre-link change (ESPRESSO1
 # SOPHIE archive errors are photon noise only; add the instrumental floor in
 # quadrature (~5 m/s before the SOPHIE+ fibre upgrade, ~1.5 m/s after).
 SOPHIE_ERROR_FLOOR_M_S = {"SOPHIE": 5.0, "SOPHIE+": 1.5}
+# The ELODIE archive gives no RV errors: take 10 m/s at S/N 100 (its typical precision
+# for bright stars), growing as 1/(S/N) below that; per-instrument jitter absorbs the rest.
+ELODIE_ERROR_M_S_AT_SN100 = 10.0
 
 # Fixed-width name columns of the Teklu catalog.
 TEKLU_NAME = slice(0, 14)
@@ -260,6 +267,20 @@ def simbad_records(identifiers: Iterable[str]) -> dict[str, dict]:
 def simbad_record(identifier: str) -> dict | None:
 	"""Return the cached or freshly queried SIMBAD record for one identifier."""
 	return simbad_records([identifier]).get(identifier)
+
+
+def host_position(star: str) -> tuple[float, float] | None:
+	"""(RA, Dec) in degrees from SIMBAD, or from the cached Exoplanet Archive table for
+	host names SIMBAD does not resolve (e.g. Praesepe's Pr0201)."""
+	record = simbad_record(star)
+	if record is not None:
+		return record["ra_deg"], record["dec_deg"]
+	if ARCHIVE_TABLE.is_file():
+		with ARCHIVE_TABLE.open() as table:
+			for row in csv.DictReader(table):
+				if catalog_key(row["hostname"]) == catalog_key(star):
+					return float(row["ra"]), float(row["dec"])
+	return None
 
 
 @cache
@@ -589,10 +610,7 @@ def read_sophie_rvs(database: Path, star: str) -> RVData:
 		]
 		if not rows:
 			continue
-		chunk = _without_gross_outliers(_chunk(rows, label, "SOPHIE", 0, "SOPHIE archive"))
-		# Pipeline RVs are as recent as the observation itself.
-		years = np.floor(2000 + (chunk.time - 2_451_544.5) / 365.25).astype(int)
-		chunks.append(chunk._replace(year=years))
+		chunks.append(_observation_years(_without_gross_outliers(_chunk(rows, label, "SOPHIE", 0, "SOPHIE archive"))))
 	return _merge(_relative_to_median(chunks))
 
 
@@ -640,12 +658,53 @@ def read_espresso_rvs(database: Path, star: str) -> RVData:
 			mode_rows, ESPRESSO_FIBRE_LINK_BJD, (f"ESPRESSO18{suffix}", f"ESPRESSO19{suffix}"),
 			instrument="ESPRESSO", year=0, dataset="ESPRESSO",
 		)
-	# Pipeline RVs are as recent as the observation itself.
-	chunks = [
-		chunk._replace(year=np.floor(2000 + (chunk.time - 2_451_544.5) / 365.25).astype(int))
-		for chunk in chunks
+	return _merge(_relative_to_median([_observation_years(chunk) for chunk in chunks]))
+
+
+def _observation_years(chunk: RVData) -> RVData:
+	"""Pipeline RVs are as recent as the observation itself."""
+	return chunk._replace(year=np.floor(2000 + (chunk.time - 2_451_544.5) / 365.25).astype(int))
+
+
+def _most_common_mask_rows(database: Path, star: str) -> list[dict]:
+	"""CSV rows for ``star`` that use its most common CCF mask."""
+	if not database.is_file():
+		return []
+	with database.open() as data_file:
+		rows = [row for row in csv.DictReader(data_file) if catalog_key(row["target"]) in identifier_keys(star)]
+	if not rows:
+		return []
+	mask = Counter(row["mask"] for row in rows).most_common(1)[0][0]
+	return [row for row in rows if row["mask"] == mask]
+
+
+def read_harps_drs_rvs(database: Path, star: str) -> RVData:
+	"""Return HARPS DRS 3.x CCF RVs (ESO archive, since 2022), relative to their median.
+
+	The pipeline zero point differs from RVBank's SERVAL RVs, so these get their own offset.
+	"""
+	rows = [
+		parsed for row in _most_common_mask_rows(database, star)
+		if (parsed := _first_three_floats([row["bjd"], row["rv_km_s"], row["rv_error_km_s"]])) is not None
 	]
-	return _merge(_relative_to_median(chunks))
+	if not rows:
+		return _merge([])
+	rows = [(time, velocity * 1_000, error * 1_000) for time, velocity, error in rows]
+	return _merge(_relative_to_median([_observation_years(_chunk(rows, "HARPS-DRS", "HARPS", 0, "HARPS DRS"))]))
+
+
+def read_elodie_rvs(database: Path, star: str) -> RVData:
+	"""Return ELODIE archive CCF RVs with errors from ELODIE_ERROR_M_S_AT_SN100, relative to their median."""
+	rows = []
+	for row in _most_common_mask_rows(database, star):
+		error = ELODIE_ERROR_M_S_AT_SN100 * max(1.0, 100 / max(float(row["sn"]), 1.0))
+		parsed = _first_three_floats([row["bjd"], row["rv_km_s"], str(error)])
+		if parsed is not None:
+			rows.append((parsed[0], parsed[1] * 1_000, parsed[2]))
+	if not rows:
+		return _merge([])
+	chunk = _without_gross_outliers(_chunk(rows, "ELODIE", "ELODIE", 0, "ELODIE archive"))
+	return _merge(_relative_to_median([_observation_years(chunk)]))
 
 
 @cache
@@ -681,6 +740,28 @@ def read_hebrard_rvs(database: Path, star: str) -> RVData:
 	return _merge([_chunk(rows, "Hebrard", "SOPHIE", ANALYSIS_YEAR["Hebrard"], "Hebrard")])
 
 
+def read_literature_rvs(database: Path, star: str) -> RVData:
+	"""Return RV tables transcribed from papers (download_rv_databases.py literature).
+
+	Each paper's table is one dataset with its median removed, labelled "Literature"
+	like the ExoArchive tables.
+	"""
+	if not database.is_file():
+		return _merge([])
+	by_table = defaultdict(list)
+	with database.open() as data_file:
+		for row in csv.DictReader(data_file):
+			if catalog_key(row["star"]) not in identifier_keys(star):
+				continue
+			parsed = _first_three_floats([row["bjd"], row["rv_m_s"], row["rv_error_m_s"]])
+			if parsed is not None:
+				by_table[(row["reference"], row["instrument"], int(row["year"]))].append(parsed)
+	return _merge(_relative_to_median([
+		_chunk(rows, "Literature", instrument, year, reference)
+		for (reference, instrument, year), rows in by_table.items()
+	]))
+
+
 def read_neveu_vanmalle_rvs(database: Path, star: str) -> RVData:
 	"""Return Neveu-VanMalle et al. 2014 CORALIE RVs (BJD - 2450000, km/s), relative to their median."""
 	rows = []
@@ -714,6 +795,9 @@ READERS = {
 	"ESPRESSO": (read_espresso_rvs, ESPRESSO_DATABASE),
 	"Hebrard": (read_hebrard_rvs, HEBRARD_DATABASE),
 	"NeveuVanMalle": (read_neveu_vanmalle_rvs, NEVEU_VANMALLE_DATABASE),
+	"Literature": (read_literature_rvs, LITERATURE_DATABASE),
+	"HARPSDRS": (read_harps_drs_rvs, HARPS_DRS_DATABASE),
+	"ELODIE": (read_elodie_rvs, ELODIE_DATABASE),
 	"Synthetic": (read_synthetic_rvs, SYNTHETICS_DATABASE),
 }
 

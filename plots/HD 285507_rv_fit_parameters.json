@@ -1,0 +1,106 @@
+{
+  "input_star": "HD 285507",
+  "source": "all",
+  "includes_synthetics": false,
+  "measurement_count": 33,
+  "orbit_fit_excluded_count": 0,
+  "periodogram_peak_period_days": 6.104342033926896,
+  "periodogram_false_alarm_probability": 0.001,
+  "periodogram_false_alarm_threshold": 0.6352044453871736,
+  "orbit_model": "keplerian",
+  "eccentricity_significance": 3.0675894455926227,
+  "period_days": 6.09054612520945,
+  "period_uncertainty_days": 0.0032706141367603186,
+  "conjunction_bjd": 2456299.747431752,
+  "conjunction_uncertainty_days": 0.06221202290412627,
+  "semiamplitude_m_per_s": 125.54689178014881,
+  "semiamplitude_uncertainty_m_per_s": 3.7144146811512955,
+  "gamma_m_per_s": 40.872452212329215,
+  "eccentricity": 0.08963093232940977,
+  "eccentricity_uncertainty": 0.029218685850607405,
+  "omega_degrees": -176.12534728085953,
+  "omega_uncertainty_degrees": 18.03926974913779,
+  "periapsis_bjd": 2456301.161693971,
+  "periapsis_uncertainty_days": 0.2978422210762162,
+  "phase_on_2027-07-01": 0.19021801043356845,
+  "phase_uncertainty_on_2027-07-01": 0.46893412828446934,
+  "phase_uncertainty_hours_on_2027-07-01": 68.5455585120347,
+  "reduced_chi_squared": 1.2307692307692308,
+  "jitter_m_per_s": {
+    "Literature": 8.569296846660386,
+    "HARPS-pre": 8.569296846660386
+  },
+  "source_offsets_m_per_s": {
+    "HARPS-pre": -154.8331669467987
+  },
+  "outer_signal": {
+    "flag": "none",
+    "baseline_days": 813.5755954002962,
+    "median_noise_m_per_s": 9.3,
+    "short_term_jitter_m_per_s": {
+      "Literature": 0.0,
+      "HARPS-pre": 0.0
+    },
+    "amplitude_uncertainty_m_per_s": 2.1636445029836677,
+    "long_period_peak": {
+      "period_days": 65.82621200723382,
+      "semiamplitude_m_per_s": 7.133336403732139,
+      "amplitude_significance": 3.2969077840168577,
+      "delta_chi_squared": 6.45523093942705,
+      "false_alarm_probability": 0.5244468304293853,
+      "conjunction_bjd": -10.975958506647219
+    },
+    "short_period_peak": {
+      "period_days": 43.66295080324135,
+      "semiamplitude_m_per_s": 10.25343714209881,
+      "amplitude_significance": 4.7389657256352935,
+      "delta_chi_squared": 20.229081917334,
+      "false_alarm_probability": 0.002744905145499693,
+      "conjunction_bjd": 14.138000606353017
+    },
+    "trend_reference_bjd": 2456347.305194745,
+    "trend_slope_m_per_s_per_yr": 35.86658845793519,
+    "trend_curvature_m_per_s_per_yr2": 82.5268536481013,
+    "model": null
+  },
+  "circular_fit": {
+    "period_days": 6.092755668159905,
+    "period_uncertainty_days": 0.0036305329020607535,
+    "conjunction_bjd": 2456293.503737056,
+    "conjunction_uncertainty_days": 0.03751262195824193,
+    "semiamplitude_m_per_s": 126.12615553638719,
+    "semiamplitude_uncertainty_m_per_s": 4.086197687288377,
+    "gamma_m_per_s": 41.689105079272714,
+    "phase_on_2027-07-01": 0.9001416238797901,
+    "phase_uncertainty_on_2027-07-01": 0.5213564833472357,
+    "phase_uncertainty_hours_on_2027-07-01": 76.23594405709885,
+    "reduced_chi_squared": 1.1428571428571428,
+    "jitter_m_per_s": {
+      "Literature": 11.227573906455003,
+      "HARPS-pre": 11.227573906455003
+    }
+  },
+  "keplerian_fit": {
+    "period_days": 6.09054612520945,
+    "period_uncertainty_days": 0.0032706141367603186,
+    "conjunction_bjd": 2456299.747431752,
+    "conjunction_uncertainty_days": 0.06221202290412627,
+    "semiamplitude_m_per_s": 125.54689178014881,
+    "semiamplitude_uncertainty_m_per_s": 3.7144146811512955,
+    "gamma_m_per_s": 40.872452212329215,
+    "eccentricity": 0.08963093232940977,
+    "eccentricity_uncertainty": 0.029218685850607405,
+    "omega_degrees": -176.12534728085953,
+    "omega_uncertainty_degrees": 18.03926974913779,
+    "periapsis_bjd": 2456301.161693971,
+    "periapsis_uncertainty_days": 0.2978422210762162,
+    "phase_on_2027-07-01": 0.19021801043356845,
+    "phase_uncertainty_on_2027-07-01": 0.46893412828446934,
+    "phase_uncertainty_hours_on_2027-07-01": 68.5455585120347,
+    "reduced_chi_squared": 1.2307692307692308,
+    "jitter_m_per_s": {
+      "Literature": 8.569296846660386,
+      "HARPS-pre": 8.569296846660386
+    }
+  }
+}

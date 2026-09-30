@@ -1,0 +1,106 @@
+{
+  "input_star": "HD 185269",
+  "source": "all",
+  "includes_synthetics": false,
+  "measurement_count": 136,
+  "orbit_fit_excluded_count": 0,
+  "periodogram_peak_period_days": 6.83834536409285,
+  "periodogram_false_alarm_probability": 0.001,
+  "periodogram_false_alarm_threshold": 0.19316927120711377,
+  "orbit_model": "keplerian",
+  "eccentricity_significance": 20.00120539854205,
+  "period_days": 6.837963251805429,
+  "period_uncertainty_days": 7.7891045357855e-05,
+  "conjunction_bjd": 2455320.676606888,
+  "conjunction_uncertainty_days": 0.0267419941073562,
+  "semiamplitude_m_per_s": 93.30820092288965,
+  "semiamplitude_uncertainty_m_per_s": 1.1506578150920361,
+  "gamma_m_per_s": -25.6601728683602,
+  "eccentricity": 0.22965688184798577,
+  "eccentricity_uncertainty": 0.011482152063931415,
+  "omega_degrees": 177.33659929816574,
+  "omega_uncertainty_degrees": 2.786956680272025,
+  "periapsis_bjd": 2455321.8445100947,
+  "periapsis_uncertainty_days": 0.05100301790922171,
+  "phase_on_2027-07-01": 0.47514944708393614,
+  "phase_uncertainty_on_2027-07-01": 0.011269981197628128,
+  "phase_uncertainty_hours_on_2027-07-01": 1.8495292146700626,
+  "reduced_chi_squared": 1.054263565891473,
+  "jitter_m_per_s": {
+    "ExoArchive": 13.307944894679181,
+    "Teklu": 6.15630888154581
+  },
+  "source_offsets_m_per_s": {
+    "ExoArchive": 11.942593990933963
+  },
+  "outer_signal": {
+    "flag": "none",
+    "baseline_days": 6678.730659999885,
+    "median_noise_m_per_s": 7.520477810489854,
+    "short_term_jitter_m_per_s": {
+      "ExoArchive": 9.971808381738493,
+      "Teklu": 3.129226565520766
+    },
+    "amplitude_uncertainty_m_per_s": 0.6083877798638002,
+    "long_period_peak": {
+      "period_days": 1476.2290436190835,
+      "semiamplitude_m_per_s": 4.400320762159495,
+      "amplitude_significance": 7.232756652582002,
+      "delta_chi_squared": 37.78416701038374,
+      "false_alarm_probability": 6.926479928462353e-07,
+      "conjunction_bjd": -653.5111335276731
+    },
+    "short_period_peak": {
+      "period_days": 17.17198764695178,
+      "semiamplitude_m_per_s": 4.140430229348767,
+      "amplitude_significance": 6.805577571389888,
+      "delta_chi_squared": 43.64882997112196,
+      "false_alarm_probability": 1.850502535707811e-07,
+      "conjunction_bjd": 0.2985910551637126
+    },
+    "trend_reference_bjd": 2455464.987360257,
+    "trend_slope_m_per_s_per_yr": 1.4591525681117612,
+    "trend_curvature_m_per_s_per_yr2": -0.11061813158548985,
+    "model": null
+  },
+  "circular_fit": {
+    "period_days": 6.8379840256290345,
+    "period_uncertainty_days": 0.00016013210586226346,
+    "conjunction_bjd": 2454882.5476894653,
+    "conjunction_uncertainty_days": 0.026660438856730438,
+    "semiamplitude_m_per_s": 86.47205602589412,
+    "semiamplitude_uncertainty_m_per_s": 2.2370860836060906,
+    "gamma_m_per_s": -25.303202714016937,
+    "phase_on_2027-07-01": 0.5451848679717841,
+    "phase_uncertainty_on_2027-07-01": 0.023412942539744172,
+    "phase_uncertainty_hours_on_2027-07-01": 3.8423358499137867,
+    "reduced_chi_squared": 1.0381679389313039,
+    "jitter_m_per_s": {
+      "ExoArchive": 19.026863123025198,
+      "Teklu": 15.966989248091233
+    }
+  },
+  "keplerian_fit": {
+    "period_days": 6.837963251805429,
+    "period_uncertainty_days": 7.7891045357855e-05,
+    "conjunction_bjd": 2455320.676606888,
+    "conjunction_uncertainty_days": 0.0267419941073562,
+    "semiamplitude_m_per_s": 93.30820092288965,
+    "semiamplitude_uncertainty_m_per_s": 1.1506578150920361,
+    "gamma_m_per_s": -25.6601728683602,
+    "eccentricity": 0.22965688184798577,
+    "eccentricity_uncertainty": 0.011482152063931415,
+    "omega_degrees": 177.33659929816574,
+    "omega_uncertainty_degrees": 2.786956680272025,
+    "periapsis_bjd": 2455321.8445100947,
+    "periapsis_uncertainty_days": 0.05100301790922171,
+    "phase_on_2027-07-01": 0.47514944708393614,
+    "phase_uncertainty_on_2027-07-01": 0.011269981197628128,
+    "phase_uncertainty_hours_on_2027-07-01": 1.8495292146700626,
+    "reduced_chi_squared": 1.054263565891473,
+    "jitter_m_per_s": {
+      "ExoArchive": 13.307944894679181,
+      "Teklu": 6.15630888154581
+    }
+  }
+}

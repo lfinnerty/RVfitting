@@ -15,13 +15,18 @@ import json
 import re
 import shutil
 import sys
+import tarfile
 import time
 from concurrent.futures import ThreadPoolExecutor
+from functools import cache
 from pathlib import Path
 
+import astropy.units as u
 import numpy as np
 import requests
+from astropy.coordinates import EarthLocation, SkyCoord
 from astropy.io import fits
+from astropy.time import Time
 
 import rv_io
 
@@ -55,7 +60,28 @@ ESO_TAP = "https://archive.eso.org/tap_obs/sync"
 ESO_DATALINK = "https://archive.eso.org/datalink/links"
 ESO_SEARCH_HALF_BOX_DEG = 5 / 3600  # pointings are at the target; stays clear of 15" binary companions
 ESPRESSO_CCF_DIRECTORY = rv_io.ESPRESSO_DATABASE.parent / "ccf"
+HARPS_DRS_CCF_DIRECTORY = rv_io.HARPS_DRS_DATABASE.parent / "ccf"
+HARPS_DRS_MIN_MJD = 59_580.0  # 2022-01-01: earlier HARPS RVs come from the RVBank releases
+HARPS_NAME_MATCH_HALF_BOX_DEG = 20 / 3600  # wider box, name-checked, for high proper-motion stars
+HARPS_MAX_PER_NIGHT = 5  # time-series nights are thinned to this many evenly spaced spectra
+HARPS_DRS_COLUMNS = ["target", "dp_id", "file", "bjd", "rv_km_s", "rv_error_km_s", "mask", "pipeline", "program"]
+ELODIE_URL = "http://atlas.obs-hp.fr/elodie/fE.cgi"
+ELODIE_CONE_ARCSEC = 20.0
+ELODIE_COLUMNS = ["target", "night", "imanum", "mask", "bjd", "rv_km_s", "sn", "sigfit", "ampfit"]
 ESPRESSO_COLUMNS = ["target", "dp_id", "file", "bjd", "rv_km_s", "rv_error_km_s", "mask", "mode", "pipeline", "program"]
+ARXIV_EPRINT = "https://arxiv.org/e-print"
+LITERATURE_DIRECTORY = rv_io.LITERATURE_DATABASE.parent
+# RV tables transcribed from arXiv sources: (arXiv ID, TeX file, line that starts the
+# table, star, instrument, BJD offset, reference, year). Rows are read from the start
+# line up to the next \hline or \enddata; each row's first three numbers are BJD, RV
+# and error in m/s.
+LITERATURE_TABLES = [
+	("2111.15028", "rv_timeseries.tex", r"\multicolumn{3}{c}{HIP086221}", "HIP 86221", "CHIRON", 2_450_000,
+	 "Paredes+2021", 2021),
+	("1310.7328", "ms.tex", r"\tablecaption{Relative Radial Velocities of HD 285507", "HD 285507", "TRES",
+	 2_456_000, "Quinn+2014", 2014),
+]
+LITERATURE_COLUMNS = ["star", "bjd", "rv_m_s", "rv_error_m_s", "instrument", "reference", "year"]
 SOPHIE_URL = "http://atlas.obs-hp.fr/sophie/sophie.cgi"
 SOPHIE_FIELDS = "seq,objname,bjd,mask,ccf_offline,rv,err"
 # The SOPHIE server drops connections after ~2 minutes, so query small RA bins.
@@ -240,33 +266,106 @@ def download_neid(targets: list[str] | None = None, refresh: bool = False) -> No
 	queried_path.write_text(json.dumps(queried, indent=1) + "\n")
 
 
-def _espresso_products(ra_deg: float, dec_deg: float) -> list[str]:
-	"""Public ESPRESSO spectrum product IDs pointed within the search box around a position."""
-	half_ra = ESO_SEARCH_HALF_BOX_DEG / np.cos(np.radians(dec_deg))
+def _eso_products(
+	ra_deg: float, dec_deg: float, instrument: str, half_box_deg: float = ESO_SEARCH_HALF_BOX_DEG,
+	min_mjd: float | None = None,
+) -> list[dict]:
+	"""Public ``instrument`` spectrum products (dp_id, target_name, s_ra, s_dec, t_min) in a box."""
+	half_ra = half_box_deg / np.cos(np.radians(dec_deg))
 	query = (
-		"SELECT dp_id FROM ivoa.ObsCore WHERE instrument_name = 'ESPRESSO' AND dataproduct_type = 'spectrum'"
+		"SELECT dp_id, target_name, s_ra, s_dec, t_min FROM ivoa.ObsCore"
+		f" WHERE instrument_name = '{instrument}' AND dataproduct_type = 'spectrum'"
 		f" AND s_ra BETWEEN {ra_deg - half_ra} AND {ra_deg + half_ra}"
-		f" AND s_dec BETWEEN {dec_deg - ESO_SEARCH_HALF_BOX_DEG} AND {dec_deg + ESO_SEARCH_HALF_BOX_DEG}"
+		f" AND s_dec BETWEEN {dec_deg - half_box_deg} AND {dec_deg + half_box_deg}"
+		+ (f" AND t_min >= {min_mjd}" if min_mjd is not None else "")
 	)
 	response = requests.get(
 		ESO_TAP, params={"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "QUERY": query}, timeout=180
 	)
 	response.raise_for_status()
-	return [row["dp_id"] for row in csv.DictReader(io.StringIO(response.text))]
+	return list(csv.DictReader(io.StringIO(response.text)))
+
+
+def _datalink_files(dp_id: str) -> list[tuple[str, str]]:
+	"""(URL, file name) of every file the ESO datalink service associates with a product."""
+	response = requests.get(ESO_DATALINK, params={"ID": f"ivo://eso.org/ID?{dp_id}"}, timeout=120)
+	response.raise_for_status()
+	files = []
+	for row in re.findall(r"<TR>(.*?)</TR>", response.text, re.S):
+		cells = [re.sub(r"<!\[CDATA\[|\]\]>", "", cell).strip() for cell in re.findall(r"<TD>(.*?)</TD>", row, re.S)]
+		if len(cells) > 6:
+			files.append((cells[1], cells[6]))
+	return files
 
 
 def _espresso_ccf(dp_id: str) -> Path:
 	"""Download (once) the science-fibre CCF file associated with an ESPRESSO product."""
-	response = requests.get(ESO_DATALINK, params={"ID": f"ivo://eso.org/ID?{dp_id}"}, timeout=120)
-	response.raise_for_status()
-	for row in re.findall(r"<TR>(.*?)</TR>", response.text, re.S):
-		cells = [re.sub(r"<!\[CDATA\[|\]\]>", "", cell).strip() for cell in re.findall(r"<TD>(.*?)</TD>", row, re.S)]
+	for url, name in _datalink_files(dp_id):
 		# ESPRESSO_CCF_A_* (newer DRS) or ES_SCCA_* (older); not the telluric-corrected CCF
-		if len(cells) > 6 and re.match(r"(ESPRESSO_CCF_A_|ES_SCCA_)", cells[6]):
-			destination = ESPRESSO_CCF_DIRECTORY / cells[6]
-			download_file(cells[1], destination)
+		if re.match(r"(ESPRESSO_CCF_A_|ES_SCCA_)", name):
+			destination = ESPRESSO_CCF_DIRECTORY / name
+			download_file(url, destination)
 			return destination
 	raise RuntimeError(f"No CCF file linked to {dp_id}")
+
+
+def _harps_ccf(dp_id: str) -> Path:
+	"""Extract (once) the fibre-A CCF file from a HARPS DRS 3.x product's ancillary tarball."""
+	for url, name in _datalink_files(dp_id):
+		if not name.endswith(".tar"):
+			continue
+		stem = name.removesuffix(".tar")
+		cached = sorted(HARPS_DRS_CCF_DIRECTORY.glob(f"{stem.split('_DRS_')[0]}_ccf_*_A.fits"))
+		if cached:
+			return cached[0]
+		archive = HARPS_DRS_CCF_DIRECTORY / name
+		download_file(url, archive)
+		with tarfile.open(archive) as tar:
+			member = next((m for m in tar.getmembers() if re.search(r"_ccf_[^/]*_A\.fits$", m.name)), None)
+			if member is None:
+				archive.unlink()
+				raise RuntimeError(f"No CCF file in {name}")
+			destination = HARPS_DRS_CCF_DIRECTORY / Path(member.name).name
+			with tar.extractfile(member) as source, destination.open("wb") as output:
+				shutil.copyfileobj(source, output)
+		archive.unlink()
+		return destination
+	raise RuntimeError(f"No DRS tarball linked to {dp_id}")
+
+
+def _per_target_download(label, path, columns, targets, refresh, fetch) -> None:
+	"""Run ``fetch(target, simbad_record) -> rows`` for targets not yet queried; keep one CSV.
+
+	Targets whose fetch fails are not marked as queried, so the next run retries them.
+	"""
+	targets = targets or fitted_targets()
+	path.parent.mkdir(parents=True, exist_ok=True)
+	existing = list(csv.DictReader(path.open())) if path.is_file() else []
+	queried_path = path.with_name("queried_targets.json")
+	queried = json.loads(queried_path.read_text()) if queried_path.is_file() else {}
+	pending = [t for t in targets if refresh or t not in queried]
+	print(f"{label}: {len(pending)} of {len(targets)} targets to query")
+	records = rv_io.simbad_records(pending)
+	rows = [row for row in existing if row["target"] not in pending]
+	for target in pending:
+		record = records.get(target)
+		if record is None:
+			print(f"  {target}: no SIMBAD position, skipped", file=sys.stderr)
+			continue
+		try:
+			found = fetch(target, record)
+		except (requests.RequestException, RuntimeError, OSError, KeyError) as error:
+			print(f"  {target}: failed ({error}); will retry next run", file=sys.stderr)
+			continue
+		rows.extend(found)
+		queried[target] = datetime.date.today().isoformat()
+		print(f"  {target}: {len(found)} {label} RVs")
+	if rows:
+		with path.open("w", newline="") as output:
+			writer = csv.DictWriter(output, fieldnames=columns)
+			writer.writeheader()
+			writer.writerows(rows)
+	queried_path.write_text(json.dumps(queried, indent=1) + "\n")
 
 
 def download_espresso(targets: list[str] | None = None, refresh: bool = False) -> None:
@@ -276,47 +375,182 @@ def download_espresso(targets: list[str] | None = None, refresh: bool = False) -
 	header RV, error, BJD, mask, and mode go into one CSV. Targets already queried
 	are skipped unless ``refresh``.
 	"""
-	targets = targets or fitted_targets()
-	path = rv_io.ESPRESSO_DATABASE
 	ESPRESSO_CCF_DIRECTORY.mkdir(parents=True, exist_ok=True)
-	existing = list(csv.DictReader(path.open())) if path.is_file() else []
-	queried_path = path.with_name("queried_targets.json")
-	queried = json.loads(queried_path.read_text()) if queried_path.is_file() else {}
-	pending = [t for t in targets if refresh or t not in queried]
-	print(f"ESPRESSO: {len(pending)} of {len(targets)} targets to query")
-	records = rv_io.simbad_records(pending)
-	rows = [row for row in existing if row["target"] not in pending]
-	for target in pending:
-		record = records.get(target)
-		if record is None:
-			print(f"  {target}: no SIMBAD position, skipped", file=sys.stderr)
-			continue
-		try:
-			found = []
-			for dp_id in _espresso_products(record["ra_deg"], record["dec_deg"]):
-				header = fits.getheader(_espresso_ccf(dp_id))
-				if "HIERARCH ESO QC CCF RV" not in header:
-					continue
-				found.append({
-					"target": target, "dp_id": dp_id, "file": header.get("ARCFILE", ""),
-					"bjd": header["HIERARCH ESO QC BJD"], "rv_km_s": header["HIERARCH ESO QC CCF RV"],
-					"rv_error_km_s": header["HIERARCH ESO QC CCF RV ERROR"],
-					"mask": header["HIERARCH ESO QC CCF MASK"], "mode": header["HIERARCH ESO INS MODE"],
-					"pipeline": header.get("HIERARCH ESO PRO REC1 PIPE ID", ""),
-					"program": header.get("HIERARCH ESO OBS PROG ID", ""),
-				})
-		except (requests.RequestException, RuntimeError, OSError) as error:
-			print(f"  {target}: failed ({error}); will retry next run", file=sys.stderr)
-			continue
-		rows.extend(found)
-		queried[target] = datetime.date.today().isoformat()
-		print(f"  {target}: {len(found)} ESPRESSO RVs")
-	if rows:
-		with path.open("w", newline="") as output:
-			writer = csv.DictWriter(output, fieldnames=ESPRESSO_COLUMNS)
-			writer.writeheader()
-			writer.writerows(rows)
-	queried_path.write_text(json.dumps(queried, indent=1) + "\n")
+
+	def fetch(target, record):
+		found = []
+		for product in _eso_products(record["ra_deg"], record["dec_deg"], "ESPRESSO"):
+			header = fits.getheader(_espresso_ccf(product["dp_id"]))
+			if "HIERARCH ESO QC CCF RV" not in header:
+				continue
+			found.append({
+				"target": target, "dp_id": product["dp_id"], "file": header.get("ARCFILE", ""),
+				"bjd": header["HIERARCH ESO QC BJD"], "rv_km_s": header["HIERARCH ESO QC CCF RV"],
+				"rv_error_km_s": header["HIERARCH ESO QC CCF RV ERROR"],
+				"mask": header["HIERARCH ESO QC CCF MASK"], "mode": header["HIERARCH ESO INS MODE"],
+				"pipeline": header.get("HIERARCH ESO PRO REC1 PIPE ID", ""),
+				"program": header.get("HIERARCH ESO OBS PROG ID", ""),
+			})
+		return found
+
+	_per_target_download("ESPRESSO", rv_io.ESPRESSO_DATABASE, ESPRESSO_COLUMNS, targets, refresh, fetch)
+
+
+def _thin_per_night(products: list[dict], limit: int) -> list[dict]:
+	"""Keep at most ``limit`` evenly spaced products per night (MJD rounded down at local noon)."""
+	nights: dict[int, list[dict]] = {}
+	for product in sorted(products, key=lambda p: float(p["t_min"])):
+		nights.setdefault(int(float(product["t_min"]) - 0.5), []).append(product)
+	kept = []
+	for night in nights.values():
+		indices = np.unique(np.linspace(0, len(night) - 1, min(limit, len(night))).round().astype(int))
+		kept += [night[index] for index in indices]
+	return kept
+
+
+def download_harps_drs(targets: list[str] | None = None, refresh: bool = False) -> None:
+	"""Collect HARPS DRS 3.x CCF RVs from ESO archive products taken since 2022.
+
+	Products are matched within ESO_SEARCH_HALF_BOX_DEG of the SIMBAD position, or
+	within HARPS_NAME_MATCH_HALF_BOX_DEG if their target name is one of the star's
+	identifiers (for high proper-motion stars). Nights with long time series are
+	thinned to HARPS_MAX_PER_NIGHT spectra. Only the fibre-A CCF of each ~6 MB
+	tarball is kept, in HARPS_DRS/ccf/.
+	"""
+	HARPS_DRS_CCF_DIRECTORY.mkdir(parents=True, exist_ok=True)
+
+	def fetch(target, record):
+		ra, dec = record["ra_deg"], record["dec_deg"]
+		keys = rv_io.identifier_keys(target)
+		products = [
+			product for product in _eso_products(ra, dec, "HARPS", HARPS_NAME_MATCH_HALF_BOX_DEG, HARPS_DRS_MIN_MJD)
+			if rv_io.catalog_key(product["target_name"]) in keys
+			or (abs(float(product["s_dec"]) - dec) < ESO_SEARCH_HALF_BOX_DEG
+				and abs((float(product["s_ra"]) - ra + 180) % 360 - 180) * np.cos(np.radians(dec)) < ESO_SEARCH_HALF_BOX_DEG)
+		]
+		found = []
+		for product in _thin_per_night(products, HARPS_MAX_PER_NIGHT):
+			header = fits.getheader(_harps_ccf(product["dp_id"]))
+			if "HIERARCH ESO DRS CCF RVC" not in header:
+				continue
+			found.append({
+				"target": target, "dp_id": product["dp_id"], "file": header.get("ARCFILE", ""),
+				"bjd": header["HIERARCH ESO DRS BJD"], "rv_km_s": header["HIERARCH ESO DRS CCF RVC"],
+				"rv_error_km_s": header["HIERARCH ESO DRS CCF NOISE"],
+				"mask": header["HIERARCH ESO DRS CCF MASK"],
+				"pipeline": header.get("HIERARCH ESO DRS VERSION", ""),
+				"program": header.get("HIERARCH ESO OBS PROG ID", ""),
+			})
+		return found
+
+	_per_target_download("HARPS DRS", rv_io.HARPS_DRS_DATABASE, HARPS_DRS_COLUMNS, targets, refresh, fetch)
+
+
+@cache
+def _ohp() -> EarthLocation:
+	return EarthLocation(lon=5.7133 * u.deg, lat=43.9317 * u.deg, height=650 * u.m)
+
+
+def _elodie_bjd(night: str, imanum: str, ra_deg: float, dec_deg: float) -> float | None:
+	"""Mid-exposure BJD_TDB of an ELODIE spectrum from its header's UT start and exposure
+	time (None if the header has no time stamp)."""
+	text = requests.get(ELODIE_URL, params={"n": "e500", "c": "i", "z": "fd", "o": f"elodie:{night}/{imanum}"}, timeout=120).text
+	text = re.sub(r"<[^>]+>", " ", text)
+	values = {key: re.search(rf"{key}\s+'?([0-9.E+-]+)", text) for key in ("DATETU", "HDEBUT", "EXPTIME")}
+	if not all(values.values()):
+		return None
+	date, start_hours, exposure = values["DATETU"].group(1), float(values["HDEBUT"].group(1)), float(values["EXPTIME"].group(1))
+	middle = Time(f"{date[:4]}-{date[4:6]}-{date[6:]}", scale="utc") + (start_hours / 24 + exposure / 172_800) * u.day
+	star = SkyCoord(ra_deg, dec_deg, unit="deg")
+	return float((middle.tdb + middle.light_travel_time(star, location=_ohp())).jd)
+
+
+def download_elodie(targets: list[str] | None = None, refresh: bool = False) -> None:
+	"""Collect ELODIE (OHP, 1994-2006) CCF RVs within ELODIE_CONE_ARCSEC of each target.
+
+	The CCF table gives the barycentric RV (vfit), S/N, and CCF width and depth but no
+	time stamp, so each spectrum's header is read for its UT start and exposure time.
+	Failed CCF fits (vfit = 0), sky-fibre CCFs, and spectra without a time stamp are skipped.
+	"""
+	def fetch(target, record):
+		ra, dec = record["ra_deg"], record["dec_deg"]
+		centre = SkyCoord(ra, dec, unit="deg")
+		name = "J" + re.sub(r"(\d{6}\.\d)\d*", r"\1", centre.to_string("hmsdms", sep="", precision=1).replace(" ", ""), count=1)
+		name = re.sub(r"\.\d+$", "", name)
+		text = requests.get(ELODIE_URL, params={"n": "e501", "a": "csv", "o": name}, timeout=180).text
+		if not re.search(r"matched (no|\d+) records?", text):
+			raise RuntimeError("ELODIE query returned no cone-search summary")
+		found = []
+		for line in text.splitlines():
+			fields = line.split("\t")
+			if line.startswith(("#", "$")) or len(fields) < 14 or fields[6] != "obj":
+				continue
+			night, imanum, mask, sn, vfit, sigfit, ampfit = fields[4], fields[5], fields[7], fields[10], fields[11], fields[12], fields[13]
+			pointing = SkyCoord(fields[1][1:3] + "h" + fields[1][3:5] + "m" + fields[1][5:9] + "s " + fields[1][9:12] + "d" + fields[1][12:14] + "m" + fields[1][14:] + "s")
+			if float(vfit) == 0 or float(sigfit) <= 0 or pointing.separation(centre).arcsec > ELODIE_CONE_ARCSEC:
+				continue
+			bjd = _elodie_bjd(night, imanum, ra, dec)
+			if bjd is None:
+				continue
+			found.append({
+				"target": target, "night": night, "imanum": imanum, "mask": mask,
+				"bjd": f"{bjd:.6f}", "rv_km_s": vfit, "sn": sn,
+				"sigfit": sigfit, "ampfit": ampfit,
+			})
+		return found
+
+	_per_target_download("ELODIE", rv_io.ELODIE_DATABASE, ELODIE_COLUMNS, targets, refresh, fetch)
+
+
+def _arxiv_source(arxiv_id: str) -> Path:
+	"""Download and unpack (once) an arXiv e-print into literature/<id>/."""
+	directory = LITERATURE_DIRECTORY / arxiv_id
+	if directory.is_dir():
+		return directory
+	archive = LITERATURE_DIRECTORY / f"{arxiv_id}.tar"
+	download_file(f"{ARXIV_EPRINT}/{arxiv_id}", archive)
+	unpacked = directory.with_name(directory.name + ".part")
+	unpacked.mkdir(parents=True, exist_ok=True)
+	try:
+		with tarfile.open(archive) as tar:
+			tar.extractall(unpacked, filter="data")
+	except tarfile.ReadError:  # single-file submissions are gzipped TeX
+		with gzip.open(archive) as source, (unpacked / "main.tex").open("wb") as output:
+			shutil.copyfileobj(source, output)
+	archive.unlink()
+	unpacked.rename(directory)
+	return directory
+
+
+def _table_rows(tex: str, start: str) -> list[list[float]]:
+	"""The numeric rows of a TeX table from the line containing ``start``."""
+	lines = tex.splitlines()
+	first = next(index for index, line in enumerate(lines) if start in line)
+	rows, started = [], False
+	for line in lines[first + 1:]:
+		code = line.split("%")[0]
+		if started and re.search(r"\\(hline|enddata)", code):
+			break
+		if code.count("&") >= 2:
+			numbers = re.findall(r"[-+]?\d+(?:\.\d+)?", re.sub(r"\$\^\{?\\star\}?\$|\\[A-Za-z]+", " ", code))
+			if len(numbers) >= 3:
+				rows.append([float(number) for number in numbers[:3]])
+				started = True
+	return rows
+
+
+def download_literature() -> None:
+	"""Transcribe the RV tables in LITERATURE_TABLES from their arXiv sources."""
+	LITERATURE_DIRECTORY.mkdir(parents=True, exist_ok=True)
+	rows = []
+	for arxiv_id, tex_file, start, star, instrument, offset, reference, year in LITERATURE_TABLES:
+		table = _table_rows((_arxiv_source(arxiv_id) / tex_file).read_text(errors="replace"), start)
+		print(f"  {reference} ({arxiv_id}): {len(table)} {instrument} RVs of {star}")
+		rows += [[star, f"{bjd + offset:.6f}", rv, error, instrument, reference, year] for bjd, rv, error in table]
+	with rv_io.LITERATURE_DATABASE.open("w", newline="") as output:
+		writer = csv.writer(output, lineterminator="\n")
+		writer.writerow(LITERATURE_COLUMNS)
+		writer.writerows(rows)
 
 
 SOURCES = {
@@ -325,6 +559,9 @@ SOURCES = {
 	"sophie": download_sophie,
 	"neid": download_neid,
 	"espresso": download_espresso,
+	"harps_drs": download_harps_drs,
+	"elodie": download_elodie,
+	"literature": download_literature,
 }
 
 

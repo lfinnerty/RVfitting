@@ -38,6 +38,9 @@ selection.
 | `forecast_phase_uncertainty.py` | Forecast how 3–5 new HIRES RVs change the transit-time uncertainty |
 | `survey_hot_jupiter_outer_planets.py` | Search Exoplanet Archive hot-Jupiter hosts for unlisted outer planets |
 | `make_hrccs_targetlist.py` | Write an `hrccs_planner` target list from the saved fits |
+| `propagate_phase_uncertainty.py` | Propagate each saved fit's transit-time uncertainty to later dates |
+| `fit_rv_hot_jupiters.py` | Fit every RV-discovered hot Jupiter and tabulate its 2027B phase uncertainty |
+| `plot_forecast_2027A.py` | Charts of a 2027A forecast and its 2027B HRCCS S/N impact, plus copies of the fits |
 | `RVdatabases/DATABASES.md` | Where each database comes from, how it is read, and how to rebuild it |
 | `plots/` | Fit outputs (`<star>_rv_fit_plot.png`, `<star>_rv_fit_parameters.json`) and result tables |
 
@@ -164,7 +167,8 @@ python plot_rvs.py HD2638 --synthetics            # include RVdatabases/Syntheti
 ```
 
 - **`--source`** takes `all` (the default), `teklu`, `exoarchive`, `cls`, `harps`,
-  `harps2020`, `sophie`, `hebrard`, `neid`, `espresso` or `neveuvanmalle`.
+  `harps2020`, `sophie`, `hebrard`, `neid`, `espresso`, `neveuvanmalle`, `literature`,
+  `harpsdrs` or `elodie`.
 - **`--outer-model`** takes `auto` (the default), `none`, `sinusoid`, `keplerian` or `trend`.
   With `auto`, a term is added only when an outer signal passes vetting. Forcing a model
   still runs the vetting, and a forced term that fails it is labelled a candidate.
@@ -275,6 +279,24 @@ hrccs-plan phase-sensitivity plots/hrccs_targetlist.csv --site keck2 \
     --start 2027-08-01 --end 2028-01-31 --airmass-k 0.05 --seeing-exponent 0.6 \
     --sigma-column "sigma_t now (h)" --sigma-column "sigma_t +3 RVs (h)" \
     --csv plots/hrccs_phase_sensitivity_2027B.csv
+```
+
+**RV-discovered hot Jupiters** (P < 8 d, M ≥ 0.3 M_J, host K ≤ 10) from the Exoplanet
+Archive table: existing fits are reused and the rest are fitted (resumably). The script
+writes the full table and a version north of `--min-dec` without known transits. The
+same forecast, target-list and S/N steps then run on that list, and
+`plot_forecast_2027A.py` charts them:
+
+```bash
+python fit_rv_hot_jupiters.py
+python forecast_phase_uncertainty.py --targets HD86081 "tau Boo" ... \
+    --output plots/forecast_2027A_hires_rv_hot_jupiters.csv   # resumable; caches each realization
+python make_hrccs_targetlist.py --targets plots/phase_uncertainty_2027B_rv_hot_jupiters_nontransiting.csv \
+    --name-column fit_target --forecast plots/forecast_2027A_hires_rv_hot_jupiters.csv \
+    --output plots/hrccs_targetlist_rv_hot_jupiters.csv
+python plot_forecast_2027A.py --targets plots/phase_uncertainty_2027B_rv_hot_jupiters_nontransiting.csv \
+    --forecast plots/forecast_2027A_hires_rv_hot_jupiters.csv \
+    --sensitivity plots/hrccs_phase_sensitivity_2027B_rv_hot_jupiters.csv --output-dir plots/rv_hot_jupiters_2027
 ```
 
 ## Output JSON

@@ -19,7 +19,7 @@ import plot_rvs
 import rv_io
 
 
-ARCHIVE_TABLE = rv_io.DATABASE_ROOT / "exoplanet_archive_pscomppars_20260929.csv"
+ARCHIVE_TABLE = rv_io.ARCHIVE_TABLE
 OUTPUT = plot_rvs.PLOTS_DIRECTORY / "hot_jupiter_outer_survey.csv"
 CANDIDATE_PLOTS = plot_rvs.PLOTS_DIRECTORY / "survey_candidates"
 CANDIDATE_PLOT_MIN_SIGNIFICANCE = 4.0  # nightly-binned significance for plotting a candidate

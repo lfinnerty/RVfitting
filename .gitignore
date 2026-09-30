@@ -15,7 +15,19 @@ RVdatabases/simbad_cache.json
 RVdatabases/exoplanet_archive_pscomppars_*.csv
 RVdatabases/NEID/
 RVdatabases/ESPRESSO/
+RVdatabases/HARPS_DRS/
+RVdatabases/ELODIE/
+RVdatabases/literature/
+RVdatabases/Damasso2020/
+# Cached lookups (rebuilt on demand; see DATABASES.md)
+RVdatabases/exoplanet_eu_shortperiod_*.csv
+RVdatabases/twomass_kmag_*.csv
+RVdatabases/archive_search_*.json
+RVdatabases/vizier_rv_search_*.json
+plots/*.cache.jsonl
+plots/rv_hot_jupiter_fits.json
 
 # Plots kept out of git
 plots/survey_candidates/
 plots/forecast_2027A_hires.png
+plots/rv_hot_jupiters_2027/

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Write an hrccs_planner (KPIC/ObsTools) target list from the saved RV fits.
 
-One row per target in plots/rv_target_summary.csv, with the adopted orbit
+One row per target in plots/rv_target_summary.csv (or ``--targets`` with
+``--name-column``, e.g. the fit_target column of a hot-Jupiter table), with the adopted orbit
 (transit conjunction, period, e and the star's omega; ObsTools uses the same
 conventions), the conjunction and period uncertainties (`T err (d)`,
 `P err (d)`), and two sigma_t scenarios on 2027-07-01 for
 `hrccs-plan phase-sensitivity --sigma-column`: the current fit, and the median
-after 3 new HIRES RVs from plots/forecast_2027A_hires.csv.
+after 3 new HIRES RVs from plots/forecast_2027A_hires.csv (or ``--forecast``).
 
 Kp max = 2 pi a / P with a from Kepler's third law for a 1 Msun star, so it is
 good to ~10% (a ~ M^(1/3)); S/N ratios from phase-sensitivity do not depend on
@@ -49,11 +50,14 @@ def sigma_after_three(forecast: list[dict], target: str) -> float:
 def main() -> None:
 	parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 	parser.add_argument("--output", type=Path, default=plot_rvs.PLOTS_DIRECTORY / "hrccs_targetlist.csv")
+	parser.add_argument("--targets", type=Path, default=plot_rvs.PLOTS_DIRECTORY / "rv_target_summary.csv")
+	parser.add_argument("--name-column", default="target_name", help="column of --targets naming each fit")
+	parser.add_argument("--forecast", type=Path, default=plot_rvs.PLOTS_DIRECTORY / "forecast_2027A_hires.csv")
 	args = parser.parse_args()
 
-	names = [row["target_name"] for row in csv.DictReader(open(plot_rvs.PLOTS_DIRECTORY / "rv_target_summary.csv"))]
-	forecast = list(csv.DictReader(open(plot_rvs.PLOTS_DIRECTORY / "forecast_2027A_hires.csv")))
-	records = rv_io.simbad_records(names)
+	names = [row[args.name_column] for row in csv.DictReader(args.targets.open()) if row[args.name_column]]
+	forecast = list(csv.DictReader(args.forecast.open()))
+	rv_io.simbad_records(names)  # one batched query for uncached names
 	with args.output.open("w", newline="") as output:
 		writer = csv.writer(output, lineterminator="\n")
 		writer.writerow(COLUMNS)
@@ -61,7 +65,7 @@ def main() -> None:
 			fit = json.loads((plot_rvs.PLOTS_DIRECTORY / f"{name}_rv_fit_parameters.json").read_text())
 			eccentric = fit["orbit_model"] == "keplerian"
 			writer.writerow([
-				name, f"{records[name]['ra_deg']:.6f}", f"{records[name]['dec_deg']:.6f}",
+				name, *(f"{value:.6f}" for value in rv_io.host_position(name)),
 				f"{fit['period_days']:.8f}", f"{fit['conjunction_bjd']:.6f}", f"{kp_max_km_s(fit['period_days']):.1f}",
 				"Y" if eccentric else "N",
 				f"{fit['eccentricity'] if eccentric else 0.0:.4f}", f"{fit['omega_degrees'] if eccentric else 90.0:.2f}",

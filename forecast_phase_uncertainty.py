@@ -10,10 +10,16 @@ and an analytic forecast that weights the new points by their actual noise.
 Observability is analytic: Maunakea, altitude > 30 deg while the Sun is below
 -12 deg, for at least one hour. Mean solar time is used, so windows are good to
 about 15 minutes.
+
+Each (target, N, realization) has its own random stream (seeded from --seed and
+those labels) and its result is appended to a cache next to the output as soon as
+it finishes, keyed on a hash of the star's RVs and saved fit; an interrupted run
+resumes from the cache, and a changed fit or dataset is recomputed.
 """
 
 import argparse
 import csv
+import hashlib
 import json
 from pathlib import Path
 
@@ -99,6 +105,20 @@ def analytic_phase_hours(parameters, new_times, new_sigma, free_offset):
 	return period * 24 / np.sqrt(current**-2 + information)
 
 
+def _item_rng(seed: int, *labels) -> np.random.Generator:
+	"""A random stream that depends only on ``seed`` and ``labels`` (not on run order)."""
+	digest = hashlib.sha256(json.dumps([seed, *labels]).encode()).digest()
+	return np.random.default_rng([seed, int.from_bytes(digest[:8], "little")])
+
+
+def _inputs_hash(bjd, rv, rv_error, labels, parameters_text: str) -> str:
+	digest = hashlib.sha256(parameters_text.encode())
+	for array in (bjd, rv, rv_error):
+		digest.update(np.ascontiguousarray(array, dtype=float).tobytes())
+	digest.update("\0".join(map(str, labels)).encode())
+	return digest.hexdigest()
+
+
 def main() -> None:
 	parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 	parser.add_argument("--realizations", type=int, default=5, help="date sets per N")
@@ -108,18 +128,28 @@ def main() -> None:
 	parser.add_argument("--targets", nargs="*", help="default: rows of rv_target_summary.csv")
 	args = parser.parse_args()
 
-	rng = np.random.default_rng(args.seed)
+	cache_path = args.output.with_suffix(".cache.jsonl")
+	cache = {}
+	if cache_path.is_file():
+		for line in cache_path.read_text().splitlines():
+			entry = json.loads(line)
+			cache[entry["key"]] = entry["rows"]
 	targets = args.targets or [
 		row["target_name"] for row in csv.DictReader(open("plots/rv_target_summary.csv"))
 	]
 	rows = []
 	for target in targets:
-		parameters = json.loads(Path(f"plots/{target}_rv_fit_parameters.json").read_text())
+		parameters_text = Path(f"plots/{target}_rv_fit_parameters.json").read_text()
+		parameters = json.loads(parameters_text)
 		bjd, rv, rv_error, labels = rv_io.combine_rv_data(
 			rv_io.load_datasets(target, plot_rvs.OBSERVED_SOURCES)
 		)
-		record = rv_io.simbad_record(target)
-		windows = observable_windows(record["ra_deg"], record["dec_deg"])
+		inputs = _inputs_hash(bjd, rv, rv_error, labels, parameters_text)
+		position = rv_io.host_position(target)
+		if position is None:
+			print(f"{target}: no position in SIMBAD or the Exoplanet Archive; skipped")
+			continue
+		windows = observable_windows(*position)
 
 		# HIRES noise model: the star's own modern HIRES errors and jitter when
 		# available, otherwise the pooled errors below and the star's jitter.
@@ -150,11 +180,17 @@ def main() -> None:
 			if count > len(windows):
 				continue
 			for realization in range(args.realizations):
+				key = hashlib.sha256(json.dumps([target, count, realization, args.seed, inputs]).encode()).hexdigest()
+				if key in cache:
+					rows += cache[key]
+					continue
+				rng = _item_rng(args.seed, target, count, realization)
 				nights = rng.choice(len(windows), size=count, replace=False)
 				times = np.sort([rng.uniform(*windows[night]) for night in nights])
 				errors = rng.choice(error_pool, size=count)
 				sigma = np.hypot(errors, jitter)
 				noise = rng.normal(0.0, sigma)
+				item_rows = []
 				for case, label in cases:
 					new_rv = saved_model(times, parameters, label) + noise
 					fit = plot_rvs.fit_system(
@@ -163,7 +199,7 @@ def main() -> None:
 						np.concatenate([rv_error, errors]),
 						np.concatenate([labels, np.full(count, label, dtype=object)]),
 					).parameters
-					rows.append({
+					item_rows.append({
 						"target": target,
 						"case": case,
 						"n_new": count,
@@ -187,6 +223,10 @@ def main() -> None:
 						"pipeline_new_point_jitter_m_per_s": fit["jitter_m_per_s"][label],
 						"jitter_m_per_s": jitter,
 					})
+				rows += item_rows
+				cache[key] = item_rows
+				with cache_path.open("a") as cache_file:
+					cache_file.write(json.dumps({"key": key, "rows": item_rows}, default=float) + "\n")
 			done = [row for row in rows if row["target"] == target and row["n_new"] == count]
 			for case, _ in cases:
 				hours = [row["phase_uncertainty_hours"] for row in done if row["case"] == case]
